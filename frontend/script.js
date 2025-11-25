@@ -1113,12 +1113,19 @@ async function limpiarArchivosHuerfanos() {
         
         // Buscar archivos que no deberían estar ahí
         const archivosAEliminar = [];
+        const archivosProblematicos = ['Emile bb', 'emile', 'Archivos'];
         
         data.forEach(item => {
             // Eliminar archivos sin extensión que no sean .folder
             if (!item.name.includes('.') && !item.name.endsWith('.folder')) {
                 archivosAEliminar.push(`${currentFolder}/${item.name}`);
                 console.log(`🧹 Marcando para eliminar archivo huérfano: ${item.name}`);
+            }
+            
+            // Eliminar archivos problemáticos específicos
+            if (archivosProblematicos.includes(item.name)) {
+                archivosAEliminar.push(`${currentFolder}/${item.name}`);
+                console.log(`🧹 Marcando archivo problemático específico: ${item.name}`);
             }
         });
         
@@ -1165,76 +1172,76 @@ async function limpiarTodo() {
         return;
     }
     
-    console.log('🧹 Iniciando limpieza manual completa...');
+    console.log('🧹 Iniciando limpieza manual SÚPER AGRESIVA...');
     
     try {
         const currentFolder = obtenerRutaCompleta();
         console.log(`📁 Limpiando carpeta: ${currentFolder}`);
         
-        const { data, error } = await supabase.storage
-            .from('midrive-files')
-            .list(currentFolder, { limit: 1000 });
-        
-        if (error) {
-            console.error('Error al listar archivos:', error);
-            return;
-        }
-        
-        console.log('📂 Archivos encontrados:', data);
-        
-        // Eliminar archivos problemáticos específicos
+        // Eliminar archivos problemáticos específicos con TODAS las variaciones posibles
         const archivosProblematicos = ['Emile bb', 'emile', 'Archivos'];
         
         for (const nombreArchivo of archivosProblematicos) {
-            const archivo = data.find(item => item.name === nombreArchivo);
-            if (archivo) {
-                const rutaCompleta = `${currentFolder}/${nombreArchivo}`;
-                console.log(`🗑️ Eliminando archivo problemático: ${rutaCompleta}`);
-                
+            console.log(`🗑️ ELIMINACIÓN AGRESIVA: ${nombreArchivo}`);
+            
+            // Todas las variaciones posibles de rutas
+            const variaciones = [
+                `${currentFolder}/${nombreArchivo}`,
+                `users/${currentUser.id}/${nombreArchivo}`,
+                `${nombreArchivo}`,
+                `${currentFolder}/${nombreArchivo}.folder`,
+                `users/${currentUser.id}/${nombreArchivo}.folder`,
+                `${nombreArchivo}.folder`,
+                `${currentFolder}/.${nombreArchivo}`,
+                `users/${currentUser.id}/.${nombreArchivo}`,
+                `.${nombreArchivo}`,
+                // Variaciones con espacios codificados
+                `${currentFolder}/${encodeURIComponent(nombreArchivo)}`,
+                `users/${currentUser.id}/${encodeURIComponent(nombreArchivo)}`,
+                encodeURIComponent(nombreArchivo),
+                // Variaciones con guiones bajos
+                `${currentFolder}/${nombreArchivo.replace(/ /g, '_')}`,
+                `users/${currentUser.id}/${nombreArchivo.replace(/ /g, '_')}`,
+                nombreArchivo.replace(/ /g, '_'),
+                // Variaciones con guiones
+                `${currentFolder}/${nombreArchivo.replace(/ /g, '-')}`,
+                `users/${currentUser.id}/${nombreArchivo.replace(/ /g, '-')}`,
+                nombreArchivo.replace(/ /g, '-')
+            ];
+            
+            let eliminados = 0;
+            
+            for (const variacion of variaciones) {
                 try {
+                    console.log(`🔄 Intentando eliminar: ${variacion}`);
                     const { error: deleteError } = await supabase.storage
                         .from('midrive-files')
-                        .remove([rutaCompleta]);
+                        .remove([variacion]);
                     
-                    if (deleteError) {
-                        console.error(`❌ Error eliminando ${nombreArchivo}:`, deleteError);
-                        
-                        // Intentar con diferentes variaciones de la ruta
-                        const variaciones = [
-                            `${currentFolder}/${nombreArchivo}`,
-                            `users/${currentUser.id}/${nombreArchivo}`,
-                            nombreArchivo
-                        ];
-                        
-                        for (const variacion of variaciones) {
-                            console.log(`🔄 Intentando eliminar con ruta: ${variacion}`);
-                            const { error: varError } = await supabase.storage
-                                .from('midrive-files')
-                                .remove([variacion]);
-                            
-                            if (!varError) {
-                                console.log(`✅ Eliminado con ruta: ${variacion}`);
-                                break;
-                            } else {
-                                console.log(`❌ Falló con ruta: ${variacion}`, varError);
-                            }
-                        }
+                    if (!deleteError) {
+                        console.log(`✅ ELIMINADO: ${variacion}`);
+                        eliminados++;
                     } else {
-                        console.log(`✅ ${nombreArchivo} eliminado exitosamente`);
+                        console.log(`❌ No existe o error: ${variacion}`);
                     }
                 } catch (e) {
-                    console.error(`❌ Excepción eliminando ${nombreArchivo}:`, e);
+                    console.log(`❌ Excepción: ${variacion}`, e);
                 }
+                
+                // Pequeña pausa entre eliminaciones
+                await new Promise(resolve => setTimeout(resolve, 100));
             }
+            
+            console.log(`📊 ${nombreArchivo}: ${eliminados} variaciones eliminadas`);
         }
         
-        console.log('🔄 Recargando lista de archivos...');
+        console.log('🔄 Esperando y recargando...');
         setTimeout(() => {
             cargarArchivos();
-        }, 1000);
+        }, 2000);
         
     } catch (error) {
-        console.error('🔴 Error en limpieza manual:', error);
+        console.error('🔴 Error en limpieza súper agresiva:', error);
     }
 }
 
@@ -1250,8 +1257,8 @@ async function cargarArchivos() {
     
     console.log('🔄 Cargando lista de archivos...');
     
-    // Limpiar archivos huérfanos primero
-    await limpiarArchivosHuerfanos();
+    // Limpiar archivos huérfanos primero (temporalmente deshabilitado)
+    // await limpiarArchivosHuerfanos();
     
     try {
         // Listar archivos y carpetas desde Supabase Storage
