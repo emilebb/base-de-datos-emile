@@ -1117,6 +1117,17 @@ h1 {
     white-space: nowrap;
 }
 
+/* ===== ARCHIVOS PROBLEMÁTICOS ===== */
+.problematic-file {
+    border: 2px solid var(--error-color) !important;
+    background: rgba(239, 68, 68, 0.1) !important;
+}
+
+.problematic-file .file-name {
+    color: var(--error-color) !important;
+    font-weight: 600;
+}
+
 /* ===== CARPETAS ===== */
 .folder-item {
     background: var(--surface-color);

@@ -1333,19 +1333,26 @@ async function cargarArchivos() {
                 // Extraer nombre original (remover timestamp)
                 const originalName = file.name.replace(/^\d+_/, '');
                 
+                // Detectar si es un archivo problemático
+                const esArchivoProblemático = !file.name.includes('.') || file.name === originalName;
+                const icono = esArchivoProblemático ? '⚠️' : '📄';
+                const claseExtra = esArchivoProblemático ? ' problematic-file' : '';
+                
                 const fileDiv = document.createElement('div');
-                fileDiv.className = 'saved-file';
+                fileDiv.className = `saved-file${claseExtra}`;
                 fileDiv.innerHTML = `
                     <div class="file-info">
-                        <div class="file-name">📄 ${originalName}</div>
+                        <div class="file-name">${icono} ${originalName}${esArchivoProblemático ? ' (problemático)' : ''}</div>
                         <div class="file-size">${formatFileSize(file.metadata?.size || 0)}</div>
                     </div>
                     <div class="file-actions">
+                        ${!esArchivoProblemático ? `
                         <button class="btn btn-secondary" onclick="descargarArchivo('${publicUrlData.publicUrl}')">
                             ⬇️ Descargar
                         </button>
-                        <button class="btn btn-danger" onclick="eliminarArchivo('${file.name}', '${originalName}')">
-                            🗑️ Eliminar
+                        ` : ''}
+                        <button class="btn btn-danger" onclick="eliminarArchivo('${file.name}', '${originalName}', ${esArchivoProblemático})">
+                            🗑️ Eliminar${esArchivoProblemático ? ' (Forzar)' : ''}
                         </button>
                     </div>
                 `;
@@ -1388,26 +1395,61 @@ async function eliminarArchivo(fileName, originalName, isFolder = false) {
         mostrarMensaje(`🗑️ Eliminando ${itemType}: ${originalName}`, 'info');
         console.log(`🗑️ Eliminando ${itemType}: ${fileName}`);
         console.log(`📁 Carpeta actual: ${currentPath}`);
+        console.log(`🔍 Archivo original: ${originalName}`);
         
-        let filePath;
+        // Detectar si es un archivo problemático (sin extensión)
+        const esArchivoProblemático = !fileName.includes('.') || fileName === originalName;
+        
+        let rutasAIntentar = [];
         
         if (isFolder) {
             // Es una carpeta - eliminar el marcador .folder
-            filePath = `${obtenerRutaCompleta()}/${originalName}.folder`;
+            rutasAIntentar.push(`${obtenerRutaCompleta()}/${originalName}.folder`);
+        } else if (esArchivoProblemático) {
+            // Es un archivo problemático - intentar múltiples rutas
+            const currentFolder = obtenerRutaCompleta();
+            rutasAIntentar = [
+                `${currentFolder}/${fileName}`,
+                `${currentFolder}/${originalName}`,
+                `users/${currentUser.id}/${fileName}`,
+                `users/${currentUser.id}/${originalName}`,
+                fileName,
+                originalName
+            ];
+            console.log(`⚠️ Archivo problemático detectado. Intentando múltiples rutas...`);
         } else {
             // Es un archivo regular
-            filePath = `${obtenerRutaCompleta()}/${fileName}`;
+            rutasAIntentar.push(`${obtenerRutaCompleta()}/${fileName}`);
         }
         
-        console.log(`🗂️ Ruta completa: ${filePath}`);
+        let eliminado = false;
+        let ultimoError = null;
         
-        const { data, error } = await supabase.storage
-            .from('midrive-files')
-            .remove([filePath]);
+        // Intentar eliminar con cada ruta
+        for (const ruta of rutasAIntentar) {
+            console.log(`🔄 Intentando eliminar con ruta: ${ruta}`);
+            
+            try {
+                const { data, error } = await supabase.storage
+                    .from('midrive-files')
+                    .remove([ruta]);
+                
+                if (!error) {
+                    console.log(`✅ Eliminado exitosamente con ruta: ${ruta}`);
+                    eliminado = true;
+                    break;
+                } else {
+                    console.log(`❌ Falló con ruta ${ruta}:`, error);
+                    ultimoError = error;
+                }
+            } catch (e) {
+                console.log(`❌ Excepción con ruta ${ruta}:`, e);
+                ultimoError = e;
+            }
+        }
         
-        if (error) {
-            console.error('Error de Supabase:', error);
-            throw new Error(`Error al eliminar ${originalName}: ${error.message}`);
+        if (!eliminado) {
+            throw new Error(`No se pudo eliminar ${originalName}. Último error: ${ultimoError?.message || 'Desconocido'}`);
         }
         
         console.log(`✅ ${itemType} eliminado: ${originalName}`);
@@ -1417,7 +1459,7 @@ async function eliminarArchivo(fileName, originalName, isFolder = false) {
         await registrarActividad(
             fileName,
             originalName,
-            filePath,
+            rutasAIntentar[0], // Usar la primera ruta como referencia
             0,
             isFolder ? 'folder' : getFileType(originalName),
             'delete',
