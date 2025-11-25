@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiDrive - Tu almacenamiento en la nube</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Pantalla de autenticación -->
+        <div id="authScreen" class="auth-screen">
+            <div class="auth-container">
+                <div class="auth-header">
+                    <div class="logo">☁️</div>
+                    <h1>MiDrive</h1>
+                    <p class="subtitle">Tu almacenamiento personal y seguro en la nube</p>
+                </div>
+
+                <!-- Formulario de Login -->
+                <div id="loginForm" class="auth-form">
+                    <h2>Iniciar Sesión</h2>
+                    <form onsubmit="iniciarSesion(event)">
+                        <div class="form-group">
+                            <label for="loginEmail">Correo Electrónico</label>
+                            <input type="email" id="loginEmail" required placeholder="tu@email.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="loginPassword">Contraseña</label>
+                            <input type="password" id="loginPassword" required placeholder="••••••••">
+                        </div>
+                        <button type="submit" class="btn btn-large auth-btn">
+                            🔑 Iniciar Sesión
+                        </button>
+                    </form>
+                    <p class="auth-switch">
+                        ¿No tienes cuenta? 
+                        <a href="#" onclick="mostrarRegistro()">Regístrate aquí</a>
+                    </p>
+                </div>
+
+                <!-- Formulario de Registro -->
+                <div id="registerForm" class="auth-form" style="display: none;">
+                    <h2>Crear Cuenta</h2>
+                    <form onsubmit="registrarUsuario(event)">
+                        <div class="form-group">
+                            <label for="registerEmail">Correo Electrónico</label>
+                            <input type="email" id="registerEmail" required placeholder="tu@email.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="registerPassword">Contraseña</label>
+                            <input type="password" id="registerPassword" required placeholder="Mínimo 6 caracteres">
+                        </div>
+                        <div class="form-group">
+                            <label for="confirmPassword">Confirmar Contraseña</label>
+                            <input type="password" id="confirmPassword" required placeholder="Repite tu contraseña">
+                        </div>
+                        <button type="submit" class="btn btn-large auth-btn">
+                            ✨ Crear Cuenta
+                        </button>
+                    </form>
+                    <p class="auth-switch">
+                        ¿Ya tienes cuenta? 
+                        <a href="#" onclick="mostrarLogin()">Inicia sesión aquí</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aplicación principal (oculta inicialmente) -->
+        <div id="mainApp" style="display: none;">
+            <!-- Header -->
+            <div class="header">
+                <div class="header-content">
+                    <div class="header-left">
+                        <div class="logo">☁️</div>
+                        <h1>MiDrive</h1>
+                    </div>
+                    <div class="header-right">
+                        <span id="userEmail" class="user-info"></span>
+                        <button class="btn btn-secondary" onclick="cerrarSesion()">
+                            🚪 Cerrar Sesión
+                        </button>
+                    </div>
+                </div>
+                <p class="subtitle">Tu espacio personal y privado en la nube</p>
+            </div>
+
+            <!-- Contenido principal -->
+            <div class="main-content">
+            <!-- Sección de subida de archivos -->
+            <div class="upload-section" id="uploadArea">
+                <h3>📤 Subir Archivos</h3>
+                <p>Arrastra archivos aquí o haz clic para seleccionar</p>
+                
+                <input type="file" id="fileInput" class="file-input" multiple>
+                <button class="btn btn-large" onclick="elegirArchivos()">
+                    📁 Elegir Archivos
+                </button>
+                
+                <div class="selected-files" id="selectedFiles"></div>
+                
+                <div class="progress-bar" id="progressBar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                
+                <button class="btn btn-success btn-large" id="uploadBtn" onclick="subirArchivos()" disabled>
+                    🚀 Subir Archivos
+                </button>
+            </div>
+
+            <!-- Mensajes -->
+            <div class="message" id="message"></div>
+
+            <!-- Botones de control -->
+            <div class="control-buttons">
+                <button class="btn btn-secondary" onclick="conectarBackend()">
+                    🔌 Probar Conexión
+                </button>
+                <button class="btn btn-secondary" onclick="cargarArchivos()">
+                    🔄 Actualizar Lista
+                </button>
+            </div>
+
+            <!-- Lista de archivos guardados -->
+            <div class="files-list">
+                <h3>📂 Archivos Guardados</h3>
+                <div class="file-grid" id="filesList">
+                    <p class="loading">Cargando archivos...</p>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="script.js"></script>
+</body>
+</html>

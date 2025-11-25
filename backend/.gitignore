@@ -1,0 +1,31 @@
+# ===== ARCHIVOS DE NODE.JS =====
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ===== VARIABLES DE ENTORNO (SEGURIDAD) =====
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ===== ARCHIVOS TEMPORALES =====
+uploads/
+temp/
+*.tmp
+*.log
+
+# ===== ARCHIVOS DEL SISTEMA =====
+.DS_Store
+Thumbs.db
+
+# ===== ARCHIVOS DE EDITOR =====
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ===== ARCHIVOS DE RENDER.COM =====
+.render/
