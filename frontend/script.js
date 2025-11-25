@@ -256,57 +256,20 @@ function mostrarMensaje(texto, tipo = 'info') {
     }, 5000);
 }
 
-// ===== FUNCIONES DE BOTONES =====
 function elegirArchivos() {
     document.getElementById('fileInput').click();
 }
 
-// ===== OBTENER TOKEN DE AUTENTICACIÓN =====
+// ===== FUNCIONES AUXILIARES =====
+
+// Obtener token de autenticación (mantenido para posibles usos futuros)
 async function obtenerToken() {
-    if (!currentUser) return null;
-    
     try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error || !session) return null;
-        return session.access_token;
+        const { data: { session } } = await supabase.auth.getSession();
+        return session?.access_token || null;
     } catch (error) {
-        console.error('Error al obtener token:', error);
+        console.error('Error obteniendo token:', error);
         return null;
-    }
-}
-
-// ===== CREAR HEADERS CON AUTENTICACIÓN =====
-async function crearHeaders() {
-    const headers = {
-        'Content-Type': 'application/json'
-    };
-    
-    const token = await obtenerToken();
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
-    
-    return headers;
-}
-
-// ===== CONECTAR CON BACKEND =====
-async function conectarBackend() {
-    try {
-        mostrarMensaje('🔌 Conectando con el servidor...', 'info');
-        
-        const headers = await crearHeaders();
-        const response = await fetch(`${API_BASE_URL}/api/status`, { headers });
-        const data = await response.json();
-        
-        if (response.ok) {
-            mostrarMensaje('✅ Conectado: ' + data.message, 'success');
-            console.log('🟢 Backend conectado:', data);
-        } else {
-            mostrarMensaje('❌ Error de conexión: ' + data.message, 'error');
-        }
-    } catch (error) {
-        mostrarMensaje('❌ No se pudo conectar con el servidor', 'error');
-        console.error('🔴 Error de conexión:', error);
     }
 }
 
@@ -506,7 +469,6 @@ async function eliminarArchivo(fileName, originalName) {
 // Estas funciones se llaman desde los onclick en el HTML
 window.elegirArchivos = elegirArchivos;
 window.subirArchivos = subirArchivos;
-window.conectarBackend = conectarBackend;
 window.cargarArchivos = cargarArchivos;
 window.descargarArchivo = descargarArchivo;
 window.eliminarArchivo = eliminarArchivo;
