@@ -1119,7 +1119,6 @@ async function limpiarArchivosHuerfanos() {
         
         // Buscar archivos que no deberían estar ahí
         const archivosAEliminar = [];
-        const archivosProblematicos = ['Emile bb', 'emile', 'Archivos'];
         
         data.forEach(item => {
             // Eliminar archivos sin extensión que no sean .folder
@@ -1128,11 +1127,7 @@ async function limpiarArchivosHuerfanos() {
                 console.log(`🧹 Marcando para eliminar archivo huérfano: ${item.name}`);
             }
             
-            // Eliminar archivos problemáticos específicos
-            if (archivosProblematicos.includes(item.name)) {
-                archivosAEliminar.push(`${currentFolder}/${item.name}`);
-                console.log(`🧹 Marcando archivo problemático específico: ${item.name}`);
-            }
+            // (Eliminado código de archivos problemáticos específicos)
         });
         
         // Eliminar archivos huérfanos
@@ -1185,7 +1180,7 @@ async function limpiarTodo() {
         console.log(`📁 Limpiando carpeta: ${currentFolder}`);
         
         // Eliminar archivos problemáticos específicos con TODAS las variaciones posibles
-        const archivosProblematicos = ['Emile bb', 'emile', 'Archivos'];
+        const archivosProblematicos = []; // Lista vacía - no hay archivos problemáticos predefinidos
         
         for (const nombreArchivo of archivosProblematicos) {
             console.log(`🗑️ ELIMINACIÓN AGRESIVA: ${nombreArchivo}`);
@@ -1272,9 +1267,7 @@ async function monitorearArchivos() {
                 .list(currentFolder, { limit: 1000 });
             
             if (!error && data) {
-                const archivosProblematicos = data.filter(item => 
-                    ['Emile bb', 'emile', 'Archivos'].includes(item.name)
-                );
+                const archivosProblematicos = []; // No filtrar archivos específicos
                 
                 if (archivosProblematicos.length > 0) {
                     console.log(`🚨 DETECTADOS ${archivosProblematicos.length} archivos problemáticos:`);
@@ -1321,9 +1314,7 @@ async function eliminarDefinitivo() {
             .list(currentFolder, { limit: 1000 });
         
         if (!error && data) {
-            const archivosProblematicos = data.filter(item => 
-                ['Emile bb', 'emile', 'Archivos'].includes(item.name)
-            );
+            const archivosProblematicos = []; // No filtrar archivos específicos
             
             if (archivosProblematicos.length > 0) {
                 console.log('💀 TODAVÍA ESTÁN AHÍ - MODO NUCLEAR ACTIVADO');
