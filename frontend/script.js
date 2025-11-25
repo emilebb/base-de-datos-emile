@@ -1,6 +1,8 @@
 // ===== VARIABLES GLOBALES =====
 let selectedFiles = [];
 let currentUser = null;
+let currentPath = ''; // Ruta actual del explorador (ej: 'Documentos/Trabajo')
+let folderHistory = []; // Historial de navegación
 const API_BASE_URL = 'http://localhost:3000';
 
 // ===== CONFIGURACIÓN DE SUPABASE =====
@@ -60,6 +62,12 @@ function mostrarAplicacion() {
     
     if (currentUser) {
         document.getElementById('userEmail').textContent = currentUser.email;
+        // Inicializar explorador
+        currentPath = '';
+        folderHistory = [];
+        actualizarBreadcrumb();
+        actualizarTituloCarpeta();
+        actualizarBotonAtras();
         cargarArchivos(); // Cargar archivos del usuario
     }
 }
@@ -273,6 +281,269 @@ async function obtenerToken() {
     }
 }
 
+// Obtener ruta completa del usuario
+function obtenerRutaCompleta(path = currentPath) {
+    if (!currentUser) return '';
+    const userFolder = `users/${currentUser.id}`;
+    return path ? `${userFolder}/${path}` : userFolder;
+}
+
+// ===== SISTEMA DE NAVEGACIÓN DE CARPETAS =====
+
+// Navegar a una carpeta específica
+function navegarACarpeta(path) {
+    if (path !== currentPath) {
+        folderHistory.push(currentPath);
+    }
+    
+    currentPath = path;
+    actualizarBreadcrumb();
+    actualizarTituloCarpeta();
+    actualizarBotonAtras();
+    cargarArchivos();
+    
+    console.log(`📁 Navegando a: ${path || 'Inicio'}`);
+}
+
+// Navegar hacia atrás
+function navegarAtras() {
+    if (folderHistory.length > 0) {
+        const previousPath = folderHistory.pop();
+        currentPath = previousPath;
+        actualizarBreadcrumb();
+        actualizarTituloCarpeta();
+        actualizarBotonAtras();
+        cargarArchivos();
+        
+        console.log(`⬅️ Navegando atrás a: ${previousPath || 'Inicio'}`);
+    }
+}
+
+// Actualizar breadcrumb
+function actualizarBreadcrumb() {
+    const breadcrumb = document.getElementById('breadcrumb');
+    breadcrumb.innerHTML = '';
+    
+    // Botón de inicio
+    const homeItem = document.createElement('span');
+    homeItem.className = currentPath === '' ? 'breadcrumb-item active' : 'breadcrumb-item';
+    homeItem.textContent = '🏠 Inicio';
+    homeItem.onclick = () => navegarACarpeta('');
+    breadcrumb.appendChild(homeItem);
+    
+    // Carpetas en la ruta
+    if (currentPath) {
+        const folders = currentPath.split('/');
+        let buildPath = '';
+        
+        folders.forEach((folder, index) => {
+            buildPath += (buildPath ? '/' : '') + folder;
+            const isLast = index === folders.length - 1;
+            
+            const folderItem = document.createElement('span');
+            folderItem.className = isLast ? 'breadcrumb-item active' : 'breadcrumb-item';
+            folderItem.textContent = `📁 ${folder}`;
+            
+            if (!isLast) {
+                const pathToNavigate = buildPath;
+                folderItem.onclick = () => navegarACarpeta(pathToNavigate);
+            }
+            
+            breadcrumb.appendChild(folderItem);
+        });
+    }
+}
+
+// Actualizar título de carpeta actual
+function actualizarTituloCarpeta() {
+    const title = document.getElementById('currentFolderTitle');
+    if (currentPath === '') {
+        title.textContent = '📂 Mis Archivos';
+    } else {
+        const folderName = currentPath.split('/').pop();
+        title.textContent = `📁 ${folderName}`;
+    }
+}
+
+// Actualizar estado del botón atrás
+function actualizarBotonAtras() {
+    const backBtn = document.getElementById('backBtn');
+    backBtn.disabled = folderHistory.length === 0;
+}
+
+// ===== GESTIÓN DE CARPETAS =====
+
+// Mostrar modal para crear carpeta
+function mostrarCrearCarpeta() {
+    document.getElementById('createFolderModal').style.display = 'flex';
+    document.getElementById('folderName').focus();
+}
+
+// Cerrar modal
+function cerrarModal() {
+    document.getElementById('createFolderModal').style.display = 'none';
+    document.getElementById('folderName').value = '';
+}
+
+// Crear nueva carpeta
+async function crearCarpeta(event) {
+    event.preventDefault();
+    
+    const folderName = document.getElementById('folderName').value.trim();
+    
+    if (!folderName) {
+        mostrarMensaje('❌ El nombre de la carpeta no puede estar vacío', 'error');
+        return;
+    }
+    
+    if (!currentUser) {
+        mostrarMensaje('❌ Debes iniciar sesión para crear carpetas', 'error');
+        return;
+    }
+    
+    try {
+        mostrarMensaje(`📁 Creando carpeta: ${folderName}`, 'info');
+        
+        // Crear archivo .folder para representar la carpeta en Supabase Storage
+        const folderPath = currentPath ? `${currentPath}/${folderName}` : folderName;
+        const fullPath = obtenerRutaCompleta(folderPath);
+        const folderMarkerPath = `${fullPath}/.folder`;
+        
+        // Crear un archivo marcador para la carpeta
+        const folderData = new Blob([JSON.stringify({
+            name: folderName,
+            created: new Date().toISOString(),
+            type: 'folder'
+        })], { type: 'application/json' });
+        
+        const { data, error } = await supabase.storage
+            .from('midrive-files')
+            .upload(folderMarkerPath, folderData, {
+                contentType: 'application/json',
+                upsert: false
+            });
+        
+        if (error) {
+            if (error.message.includes('already exists')) {
+                throw new Error(`La carpeta "${folderName}" ya existe`);
+            }
+            throw new Error(`Error al crear carpeta: ${error.message}`);
+        }
+        
+        console.log(`✅ Carpeta creada: ${folderName}`);
+        mostrarMensaje(`✅ Carpeta "${folderName}" creada exitosamente`, 'success');
+        
+        cerrarModal();
+        cargarArchivos();
+        
+    } catch (error) {
+        mostrarMensaje(`❌ Error: ${error.message}`, 'error');
+        console.error('🔴 Error al crear carpeta:', error);
+    }
+}
+
+// Renombrar carpeta
+async function renombrarCarpeta(oldPath, oldName) {
+    const newName = prompt(`Renombrar carpeta "${oldName}":`, oldName);
+    
+    if (!newName || newName === oldName) {
+        return;
+    }
+    
+    if (!currentUser) {
+        mostrarMensaje('❌ Debes iniciar sesión para renombrar carpetas', 'error');
+        return;
+    }
+    
+    try {
+        mostrarMensaje(`✏️ Renombrando carpeta: ${oldName} → ${newName}`, 'info');
+        
+        // En Supabase Storage, necesitamos mover todos los archivos de la carpeta
+        const oldFullPath = obtenerRutaCompleta(oldPath);
+        const newPath = oldPath.replace(oldName, newName);
+        const newFullPath = obtenerRutaCompleta(newPath);
+        
+        // Listar todos los archivos en la carpeta antigua
+        const { data: files, error: listError } = await supabase.storage
+            .from('midrive-files')
+            .list(oldFullPath, { limit: 1000 });
+        
+        if (listError) {
+            throw new Error(`Error al listar archivos: ${listError.message}`);
+        }
+        
+        // Mover cada archivo
+        for (const file of files) {
+            const oldFilePath = `${oldFullPath}/${file.name}`;
+            const newFilePath = `${newFullPath}/${file.name}`;
+            
+            const { error: moveError } = await supabase.storage
+                .from('midrive-files')
+                .move(oldFilePath, newFilePath);
+            
+            if (moveError) {
+                console.warn(`Error moviendo ${file.name}:`, moveError);
+            }
+        }
+        
+        mostrarMensaje(`✅ Carpeta renombrada exitosamente`, 'success');
+        cargarArchivos();
+        
+    } catch (error) {
+        mostrarMensaje(`❌ Error: ${error.message}`, 'error');
+        console.error('🔴 Error al renombrar carpeta:', error);
+    }
+}
+
+// Eliminar carpeta
+async function eliminarCarpeta(folderPath, folderName) {
+    const confirmacion = confirm(`¿Estás seguro de que quieres eliminar la carpeta "${folderName}" y todo su contenido?\n\nEsta acción no se puede deshacer.`);
+    
+    if (!confirmacion) {
+        return;
+    }
+    
+    if (!currentUser) {
+        mostrarMensaje('❌ Debes iniciar sesión para eliminar carpetas', 'error');
+        return;
+    }
+    
+    try {
+        mostrarMensaje(`🗑️ Eliminando carpeta: ${folderName}`, 'info');
+        
+        const fullPath = obtenerRutaCompleta(folderPath);
+        
+        // Listar todos los archivos en la carpeta
+        const { data: files, error: listError } = await supabase.storage
+            .from('midrive-files')
+            .list(fullPath, { limit: 1000 });
+        
+        if (listError) {
+            throw new Error(`Error al listar archivos: ${listError.message}`);
+        }
+        
+        // Eliminar todos los archivos
+        const filesToDelete = files.map(file => `${fullPath}/${file.name}`);
+        
+        if (filesToDelete.length > 0) {
+            const { error: deleteError } = await supabase.storage
+                .from('midrive-files')
+                .remove(filesToDelete);
+            
+            if (deleteError) {
+                throw new Error(`Error al eliminar archivos: ${deleteError.message}`);
+            }
+        }
+        
+        mostrarMensaje(`✅ Carpeta "${folderName}" eliminada exitosamente`, 'success');
+        cargarArchivos();
+        
+    } catch (error) {
+        mostrarMensaje(`❌ Error: ${error.message}`, 'error');
+        console.error('🔴 Error al eliminar carpeta:', error);
+    }
+}
+
 // ===== SUBIR ARCHIVOS =====
 async function subirArchivos() {
     if (selectedFiles.length === 0) {
@@ -306,7 +577,7 @@ async function subirArchivos() {
             // Crear nombre único para el archivo
             const timestamp = Date.now();
             const fileName = `${timestamp}_${file.name}`;
-            const filePath = `users/${currentUser.id}/${fileName}`;
+            const filePath = `${obtenerRutaCompleta()}/${fileName}`;
             
             // Subir archivo directamente a Supabase Storage
             const { data, error } = await supabase.storage
@@ -364,11 +635,11 @@ async function cargarArchivos() {
     console.log('🔄 Cargando lista de archivos...');
     
     try {
-        // Listar archivos directamente desde Supabase Storage
-        const userFolder = `users/${currentUser.id}`;
+        // Listar archivos y carpetas desde Supabase Storage
+        const currentFolder = obtenerRutaCompleta();
         const { data, error } = await supabase.storage
             .from('midrive-files')
-            .list(userFolder, {
+            .list(currentFolder, {
                 limit: 100,
                 sortBy: { column: 'created_at', order: 'desc' }
             });
@@ -377,15 +648,68 @@ async function cargarArchivos() {
             throw error;
         }
 
-        console.log('📂 Archivos recibidos:', data);
+        console.log('📂 Contenido recibido:', data);
         
         if (data && data.length > 0) {
             filesList.innerHTML = '';
-            data.forEach(file => {
+            
+            // Separar carpetas y archivos
+            const folders = [];
+            const files = [];
+            
+            data.forEach(item => {
+                if (item.name === '.folder') {
+                    // Es una carpeta
+                    const folderName = currentFolder.split('/').pop();
+                    if (folderName) {
+                        folders.push({
+                            name: folderName,
+                            path: currentPath,
+                            type: 'folder'
+                        });
+                    }
+                } else if (item.name.endsWith('.folder')) {
+                    // Es un marcador de subcarpeta
+                    const folderName = item.name.replace('.folder', '');
+                    const folderPath = currentPath ? `${currentPath}/${folderName}` : folderName;
+                    folders.push({
+                        name: folderName,
+                        path: folderPath,
+                        type: 'folder'
+                    });
+                } else if (!item.name.startsWith('.')) {
+                    // Es un archivo regular
+                    files.push(item);
+                }
+            });
+            
+            // Mostrar carpetas primero
+            folders.forEach(folder => {
+                const folderDiv = document.createElement('div');
+                folderDiv.className = 'folder-item folder';
+                folderDiv.innerHTML = `
+                    <div class="folder-info" ondblclick="navegarACarpeta('${folder.path}')">
+                        <div class="folder-icon">📁</div>
+                        <div class="folder-name">${folder.name}</div>
+                    </div>
+                    <div class="folder-actions">
+                        <button class="btn btn-secondary" onclick="renombrarCarpeta('${folder.path}', '${folder.name}')">
+                            ✏️ Renombrar
+                        </button>
+                        <button class="btn btn-danger" onclick="eliminarCarpeta('${folder.path}', '${folder.name}')">
+                            🗑️ Eliminar
+                        </button>
+                    </div>
+                `;
+                filesList.appendChild(folderDiv);
+            });
+            
+            // Mostrar archivos después
+            files.forEach(file => {
                 // Obtener URL pública
                 const { data: publicUrlData } = supabase.storage
                     .from('midrive-files')
-                    .getPublicUrl(`${userFolder}/${file.name}`);
+                    .getPublicUrl(`${currentFolder}/${file.name}`);
 
                 // Extraer nombre original (remover timestamp)
                 const originalName = file.name.replace(/^\d+_/, '');
@@ -408,12 +732,16 @@ async function cargarArchivos() {
                 `;
                 filesList.appendChild(fileDiv);
             });
+            
+            if (folders.length === 0 && files.length === 0) {
+                filesList.innerHTML = '<p class="empty-state">Esta carpeta está vacía</p>';
+            }
         } else {
-            filesList.innerHTML = '<p class="empty-state">No hay archivos guardados</p>';
+            filesList.innerHTML = '<p class="empty-state">Esta carpeta está vacía</p>';
         }
     } catch (error) {
-        console.error('🔴 Error al cargar archivos:', error);
-        filesList.innerHTML = '<p class="error-text">❌ Error al cargar archivos</p>';
+        console.error('🔴 Error al cargar contenido:', error);
+        filesList.innerHTML = '<p class="error-text">❌ Error al cargar contenido</p>';
     }
 }
 
@@ -442,8 +770,7 @@ async function eliminarArchivo(fileName, originalName) {
         console.log(`🗑️ Eliminando archivo: ${fileName}`);
         
         // Eliminar archivo directamente desde Supabase Storage
-        const userFolder = `users/${currentUser.id}`;
-        const filePath = `${userFolder}/${fileName}`;
+        const filePath = `${obtenerRutaCompleta()}/${fileName}`;
         
         const { data, error } = await supabase.storage
             .from('midrive-files')
@@ -477,3 +804,11 @@ window.mostrarLogin = mostrarLogin;
 window.registrarUsuario = registrarUsuario;
 window.iniciarSesion = iniciarSesion;
 window.cerrarSesion = cerrarSesion;
+// Funciones del explorador de carpetas
+window.navegarACarpeta = navegarACarpeta;
+window.navegarAtras = navegarAtras;
+window.mostrarCrearCarpeta = mostrarCrearCarpeta;
+window.cerrarModal = cerrarModal;
+window.crearCarpeta = crearCarpeta;
+window.renombrarCarpeta = renombrarCarpeta;
+window.eliminarCarpeta = eliminarCarpeta;

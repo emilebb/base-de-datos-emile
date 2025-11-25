@@ -120,13 +120,62 @@
                 </button>
             </div>
 
-            <!-- Lista de archivos guardados -->
-            <div class="files-list">
-                <h3>📂 Archivos Guardados</h3>
-                <div class="file-grid" id="filesList">
-                    <p class="loading">Cargando archivos...</p>
+            <!-- Explorador de archivos -->
+            <div class="files-explorer">
+                <!-- Barra de navegación -->
+                <div class="explorer-header">
+                    <div class="breadcrumb-container">
+                        <button class="btn btn-secondary" id="backBtn" onclick="navegarAtras()" disabled>
+                            ⬅️ Atrás
+                        </button>
+                        <div class="breadcrumb" id="breadcrumb">
+                            <span class="breadcrumb-item active" onclick="navegarACarpeta('')">🏠 Inicio</span>
+                        </div>
+                    </div>
+                    <div class="explorer-actions">
+                        <button class="btn btn-secondary" onclick="mostrarCrearCarpeta()">
+                            📁+ Nueva Carpeta
+                        </button>
+                        <button class="btn btn-secondary" onclick="cargarArchivos()">
+                            🔄 Actualizar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Lista de carpetas y archivos -->
+                <div class="files-list">
+                    <h3 id="currentFolderTitle">📂 Mis Archivos</h3>
+                    <div class="file-grid" id="filesList">
+                        <p class="loading">Cargando archivos...</p>
+                    </div>
                 </div>
             </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para crear carpeta -->
+    <div id="createFolderModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📁 Crear Nueva Carpeta</h3>
+                <button class="modal-close" onclick="cerrarModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form onsubmit="crearCarpeta(event)">
+                    <div class="form-group">
+                        <label for="folderName">Nombre de la carpeta:</label>
+                        <input type="text" id="folderName" placeholder="Mi Nueva Carpeta" required>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="cerrarModal()">
+                            ❌ Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-success">
+                            ✅ Crear Carpeta
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
