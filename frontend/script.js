@@ -435,8 +435,11 @@ async function cargarArchivos() {
                         <div class="file-size">${formatFileSize(file.metadata?.size || 0)}</div>
                     </div>
                     <div class="file-actions">
-                        <button class="btn" onclick="descargarArchivo('${publicUrlData.publicUrl}')">
+                        <button class="btn btn-secondary" onclick="descargarArchivo('${publicUrlData.publicUrl}')">
                             ⬇️ Descargar
+                        </button>
+                        <button class="btn btn-danger" onclick="eliminarArchivo('${file.name}', '${originalName}')">
+                            🗑️ Eliminar
                         </button>
                     </div>
                 `;
@@ -457,6 +460,48 @@ function descargarArchivo(publicUrl) {
     window.open(publicUrl, '_blank');
 }
 
+// ===== ELIMINAR ARCHIVO =====
+async function eliminarArchivo(fileName, originalName) {
+    if (!currentUser) {
+        mostrarMensaje('❌ Debes iniciar sesión para eliminar archivos', 'error');
+        return;
+    }
+
+    // Confirmación antes de eliminar
+    const confirmacion = confirm(`¿Estás seguro de que quieres eliminar "${originalName}"?\n\nEsta acción no se puede deshacer.`);
+    
+    if (!confirmacion) {
+        return;
+    }
+
+    try {
+        mostrarMensaje(`🗑️ Eliminando: ${originalName}`, 'info');
+        console.log(`🗑️ Eliminando archivo: ${fileName}`);
+        
+        // Eliminar archivo directamente desde Supabase Storage
+        const userFolder = `users/${currentUser.id}`;
+        const filePath = `${userFolder}/${fileName}`;
+        
+        const { data, error } = await supabase.storage
+            .from('midrive-files')
+            .remove([filePath]);
+        
+        if (error) {
+            throw new Error(`Error al eliminar ${originalName}: ${error.message}`);
+        }
+        
+        console.log(`✅ Archivo eliminado: ${originalName}`);
+        mostrarMensaje(`✅ ${originalName} eliminado exitosamente`, 'success');
+        
+        // Actualizar lista de archivos
+        cargarArchivos();
+        
+    } catch (error) {
+        mostrarMensaje(`❌ Error: ${error.message}`, 'error');
+        console.error('🔴 Error al eliminar archivo:', error);
+    }
+}
+
 // ===== FUNCIONES GLOBALES PARA BOTONES HTML =====
 // Estas funciones se llaman desde los onclick en el HTML
 window.elegirArchivos = elegirArchivos;
@@ -464,6 +509,7 @@ window.subirArchivos = subirArchivos;
 window.conectarBackend = conectarBackend;
 window.cargarArchivos = cargarArchivos;
 window.descargarArchivo = descargarArchivo;
+window.eliminarArchivo = eliminarArchivo;
 window.mostrarRegistro = mostrarRegistro;
 window.mostrarLogin = mostrarLogin;
 window.registrarUsuario = registrarUsuario;

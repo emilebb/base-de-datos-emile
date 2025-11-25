@@ -408,6 +408,14 @@ h1 {
     font-size: 1rem;
 }
 
+.btn-danger {
+    background: var(--error-color);
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+
 /* ===== ARCHIVOS SELECCIONADOS ===== */
 .selected-files {
     margin: 2rem 0 1rem 0;
@@ -540,51 +548,54 @@ h1 {
 
 /* ===== LISTA DE ARCHIVOS ===== */
 .files-list {
-    margin-top: 2rem;
+    margin: 2rem 0;
 }
 
 .files-list h3 {
-    color: #333;
-    margin-bottom: 1rem;
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .file-grid {
     display: grid;
-    gap: 10px;
+    gap: 1rem;
 }
 
 .saved-file {
-    background: #f8f9fa;
-    padding: 15px;
-    border-radius: 8px;
-    border-left: 4px solid #667eea;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    transition: all 0.2s ease;
+    box-shadow: var(--shadow-sm);
 }
 
-.saved-file .file-info {
+.saved-file:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary-color);
+}
+
+.file-info {
     flex: 1;
 }
 
-.saved-file .file-name {
+.file-name {
     font-weight: 500;
-    margin-bottom: 5px;
-}
-
-.saved-file .file-size {
-    color: #666;
-    font-size: 0.9rem;
-}
-
-.saved-file .file-actions {
-    margin-left: 1rem;
-}
-
-/* ===== ESTADOS ESPECIALES ===== */
-.loading {
-    color: #666;
-    text-align: center;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     font-style: italic;
 }
 
