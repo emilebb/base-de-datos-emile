@@ -59,8 +59,8 @@ function mostrarAutenticacion() {
 
 // Mostrar aplicación principal
 function mostrarAplicacion() {
-    document.getElementById('authSection').style.display = 'none';
-    document.getElementById('appSection').style.display = 'block';
+    document.getElementById('authScreen').style.display = 'none';
+    document.getElementById('mainApp').style.display = 'block';
     
     // Cargar perfil del usuario al mostrar la aplicación
     cargarPerfil();
@@ -172,6 +172,9 @@ async function cerrarSesion() {
         
         currentUser = null;
         selectedFiles = [];
+        userProfile = null;
+        currentPath = '';
+        folderHistory = [];
         mostrarAutenticacion();
         mostrarMensaje('Sesión cerrada exitosamente', 'success');
     } catch (error) {
