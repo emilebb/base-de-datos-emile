@@ -1125,13 +1125,116 @@ async function limpiarArchivosHuerfanos() {
         // Eliminar archivos huérfanos
         if (archivosAEliminar.length > 0) {
             console.log(`🧹 Eliminando ${archivosAEliminar.length} archivos huérfanos...`);
-            await supabase.storage
+            const { data, error } = await supabase.storage
                 .from('midrive-files')
                 .remove(archivosAEliminar);
+            
+            if (error) {
+                console.error('🔴 Error al eliminar archivos huérfanos:', error);
+                // Intentar eliminar uno por uno
+                for (const archivo of archivosAEliminar) {
+                    try {
+                        console.log(`🧹 Intentando eliminar individualmente: ${archivo}`);
+                        const { error: deleteError } = await supabase.storage
+                            .from('midrive-files')
+                            .remove([archivo]);
+                        
+                        if (deleteError) {
+                            console.error(`❌ Error eliminando ${archivo}:`, deleteError);
+                        } else {
+                            console.log(`✅ Eliminado: ${archivo}`);
+                        }
+                    } catch (e) {
+                        console.error(`❌ Excepción eliminando ${archivo}:`, e);
+                    }
+                }
+            } else {
+                console.log(`✅ Archivos huérfanos eliminados exitosamente`);
+            }
         }
         
     } catch (error) {
         console.warn('Error al limpiar archivos huérfanos:', error);
+    }
+}
+
+// ===== FUNCIÓN DE LIMPIEZA MANUAL =====
+async function limpiarTodo() {
+    if (!currentUser) {
+        console.log('❌ No hay usuario autenticado');
+        return;
+    }
+    
+    console.log('🧹 Iniciando limpieza manual completa...');
+    
+    try {
+        const currentFolder = obtenerRutaCompleta();
+        console.log(`📁 Limpiando carpeta: ${currentFolder}`);
+        
+        const { data, error } = await supabase.storage
+            .from('midrive-files')
+            .list(currentFolder, { limit: 1000 });
+        
+        if (error) {
+            console.error('Error al listar archivos:', error);
+            return;
+        }
+        
+        console.log('📂 Archivos encontrados:', data);
+        
+        // Eliminar archivos problemáticos específicos
+        const archivosProblematicos = ['Emile bb', 'emile', 'Archivos'];
+        
+        for (const nombreArchivo of archivosProblematicos) {
+            const archivo = data.find(item => item.name === nombreArchivo);
+            if (archivo) {
+                const rutaCompleta = `${currentFolder}/${nombreArchivo}`;
+                console.log(`🗑️ Eliminando archivo problemático: ${rutaCompleta}`);
+                
+                try {
+                    const { error: deleteError } = await supabase.storage
+                        .from('midrive-files')
+                        .remove([rutaCompleta]);
+                    
+                    if (deleteError) {
+                        console.error(`❌ Error eliminando ${nombreArchivo}:`, deleteError);
+                        
+                        // Intentar con diferentes variaciones de la ruta
+                        const variaciones = [
+                            `${currentFolder}/${nombreArchivo}`,
+                            `users/${currentUser.id}/${nombreArchivo}`,
+                            nombreArchivo
+                        ];
+                        
+                        for (const variacion of variaciones) {
+                            console.log(`🔄 Intentando eliminar con ruta: ${variacion}`);
+                            const { error: varError } = await supabase.storage
+                                .from('midrive-files')
+                                .remove([variacion]);
+                            
+                            if (!varError) {
+                                console.log(`✅ Eliminado con ruta: ${variacion}`);
+                                break;
+                            } else {
+                                console.log(`❌ Falló con ruta: ${variacion}`, varError);
+                            }
+                        }
+                    } else {
+                        console.log(`✅ ${nombreArchivo} eliminado exitosamente`);
+                    }
+                } catch (e) {
+                    console.error(`❌ Excepción eliminando ${nombreArchivo}:`, e);
+                }
+            }
+        }
+        
+        console.log('🔄 Recargando lista de archivos...');
+        setTimeout(() => {
+            cargarArchivos();
+        }, 1000);
+        
+    } catch (error) {
+        console.error('🔴 Error en limpieza manual:', error);
     }
 }
 
@@ -1358,3 +1461,5 @@ window.cambiarAvatar = cambiarAvatar;
 // Funciones del sistema de historial
 window.mostrarHistorial = mostrarHistorial;
 window.filtrarHistorial = filtrarHistorial;
+// Función de limpieza manual
+window.limpiarTodo = limpiarTodo;
