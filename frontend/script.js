@@ -909,6 +909,17 @@ async function crearCarpeta(event) {
             type: 'folder'
         })], { type: 'application/json' });
         
+        // Verificar si la carpeta ya existe
+        const { data: existingFiles } = await supabase.storage
+            .from('midrive-files')
+            .list(obtenerRutaCompleta(), { limit: 1000 });
+        
+        const folderExists = existingFiles?.some(file => file.name === `${folderName}.folder`);
+        
+        if (folderExists) {
+            throw new Error(`La carpeta "${folderName}" ya existe`);
+        }
+        
         const { data, error } = await supabase.storage
             .from('midrive-files')
             .upload(folderMarkerPath, folderData, {
@@ -988,63 +999,7 @@ async function renombrarCarpeta(oldPath, oldName) {
     }
 }
 
-// Eliminar carpeta
-async function eliminarCarpeta(folderPath, folderName) {
-    const confirmacion = confirm(`¿Estás seguro de que quieres eliminar la carpeta "${folderName}" y todo su contenido?\n\nEsta acción no se puede deshacer.`);
-    
-    if (!confirmacion) {
-        return;
-    }
-    
-    if (!currentUser) {
-        mostrarMensaje('❌ Debes iniciar sesión para eliminar carpetas', 'error');
-        return;
-    }
-    
-    try {
-        mostrarMensaje(`🗑️ Eliminando carpeta: ${folderName}`, 'info');
-        
-        // Eliminar el archivo marcador de la carpeta
-        const currentFolder = obtenerRutaCompleta();
-        const markerPath = `${currentFolder}/${folderName}.folder`;
-        
-        const { error: deleteMarkerError } = await supabase.storage
-            .from('midrive-files')
-            .remove([markerPath]);
-        
-        if (deleteMarkerError) {
-            console.warn('Error al eliminar marcador:', deleteMarkerError);
-        }
-        
-        // Eliminar contenido de la carpeta
-        const fullPath = obtenerRutaCompleta(folderPath);
-        
-        // Listar todos los archivos en la carpeta
-        const { data: files, error: listError } = await supabase.storage
-            .from('midrive-files')
-            .list(fullPath, { limit: 1000 });
-        
-        if (!listError && files && files.length > 0) {
-            // Eliminar todos los archivos
-            const filesToDelete = files.map(file => `${fullPath}/${file.name}`);
-            
-            const { error: deleteError } = await supabase.storage
-                .from('midrive-files')
-                .remove(filesToDelete);
-            
-            if (deleteError) {
-                console.warn('Error al eliminar contenido:', deleteError);
-            }
-        }
-        
-        mostrarMensaje(`✅ Carpeta "${folderName}" eliminada exitosamente`, 'success');
-        cargarArchivos();
-        
-    } catch (error) {
-        mostrarMensaje(`❌ Error: ${error.message}`, 'error');
-        console.error('🔴 Error al eliminar carpeta:', error);
-    }
-}
+// Función eliminarCarpeta removida - ahora se usa eliminarArchivo con isFolder=true
 
 // ===== SUBIR ARCHIVOS =====
 async function subirArchivos() {
@@ -1200,7 +1155,7 @@ async function cargarArchivos() {
                         <button class="btn btn-secondary" onclick="renombrarCarpeta('${folder.path}', '${folder.name}')">
                             ✏️ Renombrar
                         </button>
-                        <button class="btn btn-danger" onclick="eliminarCarpeta('${folder.path}', '${folder.name}')">
+                        <button class="btn btn-danger" onclick="eliminarArchivo('${folder.markerFile}', '${folder.name}', true)">
                             🗑️ Eliminar
                         </button>
                     </div>
@@ -1256,26 +1211,34 @@ function descargarArchivo(publicUrl) {
 }
 
 // ===== ELIMINAR ARCHIVO =====
-async function eliminarArchivo(fileName, originalName) {
+async function eliminarArchivo(fileName, originalName, isFolder = false) {
     if (!currentUser) {
         mostrarMensaje('❌ Debes iniciar sesión para eliminar archivos', 'error');
         return;
     }
 
-    // Confirmación antes de eliminar
-    const confirmacion = confirm(`¿Estás seguro de que quieres eliminar "${originalName}"?\n\nEsta acción no se puede deshacer.`);
+    const itemType = isFolder ? 'carpeta' : 'archivo';
+    const confirmacion = confirm(`¿Estás seguro de que quieres eliminar ${itemType} "${originalName}"?\n\nEsta acción no se puede deshacer.`);
     
     if (!confirmacion) {
         return;
     }
 
     try {
-        mostrarMensaje(`🗑️ Eliminando: ${originalName}`, 'info');
-        console.log(`🗑️ Eliminando archivo: ${fileName}`);
+        mostrarMensaje(`🗑️ Eliminando ${itemType}: ${originalName}`, 'info');
+        console.log(`🗑️ Eliminando ${itemType}: ${fileName}`);
         console.log(`📁 Carpeta actual: ${currentPath}`);
         
-        // Eliminar archivo directamente desde Supabase Storage
-        const filePath = `${obtenerRutaCompleta()}/${fileName}`;
+        let filePath;
+        
+        if (isFolder) {
+            // Es una carpeta - eliminar el marcador .folder
+            filePath = `${obtenerRutaCompleta()}/${originalName}.folder`;
+        } else {
+            // Es un archivo regular
+            filePath = `${obtenerRutaCompleta()}/${fileName}`;
+        }
+        
         console.log(`🗂️ Ruta completa: ${filePath}`);
         
         const { data, error } = await supabase.storage
@@ -1287,7 +1250,7 @@ async function eliminarArchivo(fileName, originalName) {
             throw new Error(`Error al eliminar ${originalName}: ${error.message}`);
         }
         
-        console.log(`✅ Archivo eliminado: ${originalName}`);
+        console.log(`✅ ${itemType} eliminado: ${originalName}`);
         mostrarMensaje(`✅ ${originalName} eliminado exitosamente`, 'success');
         
         // Registrar actividad en el historial
@@ -1295,18 +1258,20 @@ async function eliminarArchivo(fileName, originalName) {
             fileName,
             originalName,
             filePath,
-            0, // No conocemos el tamaño del archivo eliminado
-            getFileType(originalName),
+            0,
+            isFolder ? 'folder' : getFileType(originalName),
             'delete',
             currentPath
         );
         
-        // Actualizar lista de archivos
-        cargarArchivos();
+        // Actualizar lista de archivos inmediatamente
+        setTimeout(() => {
+            cargarArchivos();
+        }, 500);
         
     } catch (error) {
         mostrarMensaje(`❌ Error: ${error.message}`, 'error');
-        console.error('🔴 Error al eliminar archivo:', error);
+        console.error('🔴 Error al eliminar:', error);
     }
 }
 
@@ -1329,7 +1294,6 @@ window.mostrarCrearCarpeta = mostrarCrearCarpeta;
 window.cerrarModal = cerrarModal;
 window.crearCarpeta = crearCarpeta;
 window.renombrarCarpeta = renombrarCarpeta;
-window.eliminarCarpeta = eliminarCarpeta;
 // Funciones del sistema de perfiles
 window.mostrarPerfil = mostrarPerfil;
 window.guardarPerfil = guardarPerfil;
