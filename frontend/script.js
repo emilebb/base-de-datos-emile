@@ -1245,6 +1245,110 @@ async function limpiarTodo() {
     }
 }
 
+// ===== FUNCIÓN DE MONITOREO =====
+async function monitorearArchivos() {
+    if (!currentUser) {
+        console.log('❌ No hay usuario autenticado');
+        return;
+    }
+    
+    console.log('👁️ Iniciando monitoreo de archivos...');
+    
+    let contador = 0;
+    const intervalo = setInterval(async () => {
+        contador++;
+        console.log(`🔍 Monitoreo #${contador}`);
+        
+        try {
+            const currentFolder = obtenerRutaCompleta();
+            const { data, error } = await supabase.storage
+                .from('midrive-files')
+                .list(currentFolder, { limit: 1000 });
+            
+            if (!error && data) {
+                const archivosProblematicos = data.filter(item => 
+                    ['Emile bb', 'emile', 'Archivos'].includes(item.name)
+                );
+                
+                if (archivosProblematicos.length > 0) {
+                    console.log(`🚨 DETECTADOS ${archivosProblematicos.length} archivos problemáticos:`);
+                    archivosProblematicos.forEach(item => {
+                        console.log(`   - ${item.name} (creado: ${item.created_at})`);
+                    });
+                } else {
+                    console.log(`✅ No hay archivos problemáticos`);
+                }
+            }
+        } catch (e) {
+            console.error('Error en monitoreo:', e);
+        }
+        
+        if (contador >= 10) {
+            clearInterval(intervalo);
+            console.log('👁️ Monitoreo terminado');
+        }
+    }, 2000);
+    
+    console.log('👁️ Monitoreo activo por 20 segundos...');
+}
+
+// ===== FUNCIÓN DE ELIMINACIÓN DEFINITIVA =====
+async function eliminarDefinitivo() {
+    if (!currentUser) {
+        console.log('❌ No hay usuario autenticado');
+        return;
+    }
+    
+    console.log('💀 ELIMINACIÓN DEFINITIVA - MODO NUCLEAR');
+    
+    try {
+        // 1. Eliminar con la función agresiva
+        await limpiarTodo();
+        
+        // 2. Esperar un momento
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // 3. Verificar si siguen ahí
+        const currentFolder = obtenerRutaCompleta();
+        const { data, error } = await supabase.storage
+            .from('midrive-files')
+            .list(currentFolder, { limit: 1000 });
+        
+        if (!error && data) {
+            const archivosProblematicos = data.filter(item => 
+                ['Emile bb', 'emile', 'Archivos'].includes(item.name)
+            );
+            
+            if (archivosProblematicos.length > 0) {
+                console.log('💀 TODAVÍA ESTÁN AHÍ - MODO NUCLEAR ACTIVADO');
+                
+                // 4. Eliminar TODO el contenido de la carpeta del usuario
+                console.log('💀 Eliminando TODO el contenido...');
+                const todosLosArchivos = data.map(item => `${currentFolder}/${item.name}`);
+                
+                const { error: deleteAllError } = await supabase.storage
+                    .from('midrive-files')
+                    .remove(todosLosArchivos);
+                
+                if (deleteAllError) {
+                    console.error('Error eliminando todo:', deleteAllError);
+                } else {
+                    console.log('💀 TODO ELIMINADO');
+                }
+                
+                // 5. Esperar y verificar
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                cargarArchivos();
+            } else {
+                console.log('✅ ELIMINACIÓN EXITOSA');
+            }
+        }
+        
+    } catch (error) {
+        console.error('💀 Error en eliminación definitiva:', error);
+    }
+}
+
 // ===== CARGAR LISTA DE ARCHIVOS =====
 async function cargarArchivos() {
     if (!currentUser) {
@@ -1512,3 +1616,7 @@ window.mostrarHistorial = mostrarHistorial;
 window.filtrarHistorial = filtrarHistorial;
 // Función de limpieza manual
 window.limpiarTodo = limpiarTodo;
+// Función de monitoreo
+window.monitorearArchivos = monitorearArchivos;
+// Función de eliminación definitiva
+window.eliminarDefinitivo = eliminarDefinitivo;
