@@ -59,20 +59,23 @@ function mostrarAutenticacion() {
 
 // Mostrar aplicación principal
 function mostrarAplicacion() {
-    document.getElementById('authScreen').style.display = 'none';
-    document.getElementById('mainApp').style.display = 'block';
+    document.getElementById('authSection').style.display = 'none';
+    document.getElementById('appSection').style.display = 'block';
     
-    if (currentUser) {
-        // Cargar perfil del usuario
-        cargarPerfil();
-        // Inicializar explorador
-        currentPath = '';
-        folderHistory = [];
-        actualizarBreadcrumb();
-        actualizarTituloCarpeta();
-        actualizarBotonAtras();
-        cargarArchivos(); // Cargar archivos del usuario
-    }
+    // Cargar perfil del usuario al mostrar la aplicación
+    cargarPerfil();
+    
+    // Inicializar el explorador de carpetas
+    actualizarBreadcrumb();
+    actualizarTituloCarpeta();
+    actualizarBotonAtras();
+    cargarArchivos();
+    
+    // Iniciar monitoreo automático de archivos problemáticos
+    setTimeout(() => {
+        console.log('🔍 Iniciando monitoreo automático...');
+        monitorearArchivos();
+    }, 5000);
 }
 
 // Alternar entre formularios de login y registro
