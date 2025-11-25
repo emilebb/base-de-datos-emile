@@ -78,7 +78,13 @@
                         <h1>MiDrive</h1>
                     </div>
                     <div class="header-right">
-                        <span id="userEmail" class="user-info"></span>
+                        <div class="user-profile" onclick="mostrarPerfil()">
+                            <img id="userAvatar" class="user-avatar" src="https://via.placeholder.com/40/3B82F6/FFFFFF?text=👤" alt="Avatar">
+                            <div class="user-info">
+                                <div id="userName" class="user-name">Usuario</div>
+                                <div id="userEmail" class="user-email">email@ejemplo.com</div>
+                            </div>
+                        </div>
                         <button class="btn btn-secondary" onclick="cerrarSesion()">
                             🚪 Cerrar Sesión
                         </button>
@@ -159,7 +165,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>📁 Crear Nueva Carpeta</h3>
-                <button class="modal-close" onclick="cerrarModal()">&times;</button>
+                <button class="modal-close" onclick="cerrarModal('createFolderModal')">&times;</button>
             </div>
             <div class="modal-body">
                 <form onsubmit="crearCarpeta(event)">
@@ -168,7 +174,7 @@
                         <input type="text" id="folderName" placeholder="Mi Nueva Carpeta" required>
                     </div>
                     <div class="form-actions">
-                        <button type="button" class="btn btn-secondary" onclick="cerrarModal()">
+                        <button type="button" class="btn btn-secondary" onclick="cerrarModal('createFolderModal')">
                             ❌ Cancelar
                         </button>
                         <button type="submit" class="btn btn-success">
@@ -176,6 +182,80 @@
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de perfil de usuario -->
+    <div id="profileModal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>👤 Mi Perfil</h3>
+                <button class="modal-close" onclick="cerrarModal('profileModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="profile-section">
+                    <!-- Avatar y información básica -->
+                    <div class="profile-avatar-section">
+                        <div class="avatar-container">
+                            <img id="profileAvatar" class="profile-avatar" src="https://via.placeholder.com/120/3B82F6/FFFFFF?text=👤" alt="Avatar">
+                            <button class="avatar-upload-btn" onclick="cambiarAvatar()">
+                                📷 Cambiar Foto
+                            </button>
+                            <input type="file" id="avatarInput" accept="image/*" style="display: none;">
+                        </div>
+                        <div class="profile-stats">
+                            <div class="stat-item">
+                                <div class="stat-number" id="fileCount">0</div>
+                                <div class="stat-label">Archivos</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number" id="folderCount">0</div>
+                                <div class="stat-label">Carpetas</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number" id="memberSince">2024</div>
+                                <div class="stat-label">Miembro desde</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Formulario de perfil -->
+                    <form onsubmit="guardarPerfil(event)" class="profile-form">
+                        <div class="form-group">
+                            <label for="profileFullName">Nombre completo:</label>
+                            <input type="text" id="profileFullName" placeholder="Tu nombre completo">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="profileBio">Biografía:</label>
+                            <textarea id="profileBio" placeholder="Cuéntanos algo sobre ti..." rows="3"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="profilePhone">Teléfono (opcional):</label>
+                            <input type="tel" id="profilePhone" placeholder="+1 234 567 8900">
+                        </div>
+
+                        <div class="profile-info">
+                            <div class="info-item">
+                                <strong>Email:</strong> <span id="profileEmail">email@ejemplo.com</span>
+                            </div>
+                            <div class="info-item">
+                                <strong>Última conexión:</strong> <span id="lastLogin">Ahora</span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary" onclick="cerrarModal('profileModal')">
+                                ❌ Cancelar
+                            </button>
+                            <button type="submit" class="btn btn-success">
+                                ✅ Guardar Perfil
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>

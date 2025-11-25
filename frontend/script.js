@@ -1,6 +1,7 @@
 // ===== VARIABLES GLOBALES =====
 let selectedFiles = [];
 let currentUser = null;
+let userProfile = null; // Perfil del usuario actual
 let currentPath = ''; // Ruta actual del explorador (ej: 'Documentos/Trabajo')
 let folderHistory = []; // Historial de navegación
 const API_BASE_URL = 'http://localhost:3000';
@@ -61,7 +62,8 @@ function mostrarAplicacion() {
     document.getElementById('mainApp').style.display = 'block';
     
     if (currentUser) {
-        document.getElementById('userEmail').textContent = currentUser.email;
+        // Cargar perfil del usuario
+        cargarPerfil();
         // Inicializar explorador
         currentPath = '';
         folderHistory = [];
@@ -188,6 +190,26 @@ function setupEventListeners() {
     document.getElementById('fileInput').addEventListener('change', function(e) {
         const files = Array.from(e.target.files);
         handleFileSelection(files);
+    });
+    
+    // Event listener para subida de avatar
+    document.getElementById('avatarInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            // Validar que sea una imagen
+            if (!file.type.startsWith('image/')) {
+                mostrarMensaje('❌ Por favor selecciona una imagen válida', 'error');
+                return;
+            }
+            
+            // Validar tamaño (máximo 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                mostrarMensaje('❌ La imagen debe ser menor a 5MB', 'error');
+                return;
+            }
+            
+            subirAvatar(file);
+        }
     });
 }
 
@@ -371,6 +393,253 @@ function actualizarBotonAtras() {
     backBtn.disabled = folderHistory.length === 0;
 }
 
+// ===== SISTEMA DE PERFILES DE USUARIO =====
+
+// Cargar perfil del usuario
+async function cargarPerfil() {
+    if (!currentUser) return;
+    
+    try {
+        console.log('👤 Cargando perfil del usuario...');
+        
+        // Obtener perfil desde Supabase
+        const { data, error } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', currentUser.id)
+            .single();
+        
+        if (error && error.code !== 'PGRST116') {
+            throw error;
+        }
+        
+        if (data) {
+            userProfile = data;
+            console.log('✅ Perfil cargado:', userProfile);
+        } else {
+            // Crear perfil si no existe
+            await crearPerfilInicial();
+        }
+        
+        actualizarInterfazPerfil();
+        
+    } catch (error) {
+        console.error('🔴 Error al cargar perfil:', error);
+        // Crear perfil por defecto
+        userProfile = {
+            id: currentUser.id,
+            full_name: currentUser.email.split('@')[0],
+            avatar_url: null,
+            bio: null,
+            phone: null,
+            created_at: new Date().toISOString(),
+            last_login: new Date().toISOString()
+        };
+        actualizarInterfazPerfil();
+    }
+}
+
+// Crear perfil inicial
+async function crearPerfilInicial() {
+    try {
+        const { data, error } = await supabase
+            .from('user_profiles')
+            .insert([{
+                id: currentUser.id,
+                full_name: currentUser.email.split('@')[0],
+                created_at: new Date().toISOString(),
+                last_login: new Date().toISOString()
+            }])
+            .select()
+            .single();
+        
+        if (error) throw error;
+        
+        userProfile = data;
+        console.log('✅ Perfil inicial creado:', userProfile);
+        
+    } catch (error) {
+        console.error('🔴 Error al crear perfil inicial:', error);
+    }
+}
+
+// Actualizar interfaz con datos del perfil
+function actualizarInterfazPerfil() {
+    if (!userProfile) return;
+    
+    // Actualizar header
+    const userName = document.getElementById('userName');
+    const userEmail = document.getElementById('userEmail');
+    const userAvatar = document.getElementById('userAvatar');
+    
+    userName.textContent = userProfile.full_name || 'Usuario';
+    userEmail.textContent = currentUser.email;
+    
+    if (userProfile.avatar_url) {
+        userAvatar.src = userProfile.avatar_url;
+    } else {
+        // Avatar por defecto con inicial del nombre
+        const initial = (userProfile.full_name || currentUser.email)[0].toUpperCase();
+        userAvatar.src = `https://via.placeholder.com/40/3B82F6/FFFFFF?text=${initial}`;
+    }
+}
+
+// Mostrar modal de perfil
+async function mostrarPerfil() {
+    if (!userProfile) {
+        await cargarPerfil();
+    }
+    
+    // Llenar formulario con datos actuales
+    document.getElementById('profileFullName').value = userProfile.full_name || '';
+    document.getElementById('profileBio').value = userProfile.bio || '';
+    document.getElementById('profilePhone').value = userProfile.phone || '';
+    document.getElementById('profileEmail').textContent = currentUser.email;
+    
+    // Actualizar avatar en modal
+    const profileAvatar = document.getElementById('profileAvatar');
+    if (userProfile.avatar_url) {
+        profileAvatar.src = userProfile.avatar_url;
+    } else {
+        const initial = (userProfile.full_name || currentUser.email)[0].toUpperCase();
+        profileAvatar.src = `https://via.placeholder.com/120/3B82F6/FFFFFF?text=${initial}`;
+    }
+    
+    // Actualizar estadísticas
+    await actualizarEstadisticas();
+    
+    // Mostrar fechas
+    if (userProfile.created_at) {
+        const memberSince = new Date(userProfile.created_at).getFullYear();
+        document.getElementById('memberSince').textContent = memberSince;
+    }
+    
+    if (userProfile.last_login) {
+        const lastLogin = new Date(userProfile.last_login).toLocaleDateString();
+        document.getElementById('lastLogin').textContent = lastLogin;
+    }
+    
+    // Mostrar modal
+    document.getElementById('profileModal').style.display = 'flex';
+}
+
+// Actualizar estadísticas del usuario
+async function actualizarEstadisticas() {
+    try {
+        // Contar archivos
+        const currentFolder = obtenerRutaCompleta('');
+        const { data: files, error } = await supabase.storage
+            .from('midrive-files')
+            .list(currentFolder, { limit: 1000 });
+        
+        if (!error && files) {
+            const fileCount = files.filter(item => !item.name.startsWith('.')).length;
+            const folderCount = files.filter(item => item.name.endsWith('.folder')).length;
+            
+            document.getElementById('fileCount').textContent = fileCount;
+            document.getElementById('folderCount').textContent = folderCount;
+        }
+    } catch (error) {
+        console.error('Error al cargar estadísticas:', error);
+    }
+}
+
+// Guardar perfil
+async function guardarPerfil(event) {
+    event.preventDefault();
+    
+    if (!currentUser) return;
+    
+    try {
+        mostrarMensaje('💾 Guardando perfil...', 'info');
+        
+        const fullName = document.getElementById('profileFullName').value.trim();
+        const bio = document.getElementById('profileBio').value.trim();
+        const phone = document.getElementById('profilePhone').value.trim();
+        
+        const { data, error } = await supabase
+            .from('user_profiles')
+            .update({
+                full_name: fullName || null,
+                bio: bio || null,
+                phone: phone || null,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', currentUser.id)
+            .select()
+            .single();
+        
+        if (error) throw error;
+        
+        userProfile = data;
+        actualizarInterfazPerfil();
+        
+        mostrarMensaje('✅ Perfil guardado exitosamente', 'success');
+        cerrarModal('profileModal');
+        
+    } catch (error) {
+        console.error('🔴 Error al guardar perfil:', error);
+        mostrarMensaje(`❌ Error al guardar perfil: ${error.message}`, 'error');
+    }
+}
+
+// Cambiar avatar
+function cambiarAvatar() {
+    document.getElementById('avatarInput').click();
+}
+
+// Manejar subida de avatar
+async function subirAvatar(file) {
+    if (!currentUser || !file) return;
+    
+    try {
+        mostrarMensaje('📷 Subiendo foto de perfil...', 'info');
+        
+        // Crear nombre único para el avatar
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${currentUser.id}_avatar.${fileExt}`;
+        const filePath = `avatars/${fileName}`;
+        
+        // Subir imagen a Supabase Storage
+        const { data, error } = await supabase.storage
+            .from('midrive-files')
+            .upload(filePath, file, {
+                contentType: file.type,
+                upsert: true
+            });
+        
+        if (error) throw error;
+        
+        // Obtener URL pública
+        const { data: publicUrlData } = supabase.storage
+            .from('midrive-files')
+            .getPublicUrl(filePath);
+        
+        // Actualizar perfil con nueva URL
+        const { error: updateError } = await supabase
+            .from('user_profiles')
+            .update({
+                avatar_url: publicUrlData.publicUrl,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', currentUser.id);
+        
+        if (updateError) throw updateError;
+        
+        userProfile.avatar_url = publicUrlData.publicUrl;
+        actualizarInterfazPerfil();
+        
+        // Actualizar avatar en modal
+        document.getElementById('profileAvatar').src = publicUrlData.publicUrl;
+        
+        mostrarMensaje('✅ Foto de perfil actualizada', 'success');
+        
+    } catch (error) {
+        console.error('🔴 Error al subir avatar:', error);
+        mostrarMensaje(`❌ Error al subir foto: ${error.message}`, 'error');
+    }
+}
+
 // ===== GESTIÓN DE CARPETAS =====
 
 // Mostrar modal para crear carpeta
@@ -380,9 +649,11 @@ function mostrarCrearCarpeta() {
 }
 
 // Cerrar modal
-function cerrarModal() {
-    document.getElementById('createFolderModal').style.display = 'none';
-    document.getElementById('folderName').value = '';
+function cerrarModal(modalId = 'createFolderModal') {
+    document.getElementById(modalId).style.display = 'none';
+    if (modalId === 'createFolderModal') {
+        document.getElementById('folderName').value = '';
+    }
 }
 
 // Crear nueva carpeta
@@ -812,3 +1083,7 @@ window.cerrarModal = cerrarModal;
 window.crearCarpeta = crearCarpeta;
 window.renombrarCarpeta = renombrarCarpeta;
 window.eliminarCarpeta = eliminarCarpeta;
+// Funciones del sistema de perfiles
+window.mostrarPerfil = mostrarPerfil;
+window.guardarPerfil = guardarPerfil;
+window.cambiarAvatar = cambiarAvatar;
