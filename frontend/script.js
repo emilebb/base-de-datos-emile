@@ -1441,10 +1441,10 @@ async function cargarArchivos() {
                 // Extraer nombre original (remover timestamp)
                 const originalName = file.name.replace(/^\d+_/, '');
                 
-                // Detectar si es un archivo problemático
-                const esArchivoProblemático = !file.name.includes('.') || file.name === originalName;
-                const icono = esArchivoProblemático ? '⚠️' : '📄';
-                const claseExtra = esArchivoProblemático ? ' problematic-file' : '';
+                // Ya no detectamos archivos como problemáticos automáticamente
+                const esArchivoProblemático = false; // Deshabilitado
+                const icono = '📄';
+                const claseExtra = '';
                 
                 const fileDiv = document.createElement('div');
                 fileDiv.className = `saved-file${claseExtra}`;
@@ -1505,8 +1505,8 @@ async function eliminarArchivo(fileName, originalName, isFolder = false) {
         console.log(`📁 Carpeta actual: ${currentPath}`);
         console.log(`🔍 Archivo original: ${originalName}`);
         
-        // Detectar si es un archivo problemático (sin extensión)
-        const esArchivoProblemático = !fileName.includes('.') || fileName === originalName;
+        // Ya no detectamos archivos como problemáticos automáticamente
+        const esArchivoProblemático = false; // Deshabilitado
         
         let rutasAIntentar = [];
         
