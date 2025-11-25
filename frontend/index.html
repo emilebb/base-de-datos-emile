@@ -142,6 +142,9 @@
                         <button class="btn btn-secondary" onclick="mostrarCrearCarpeta()">
                             📁+ Nueva Carpeta
                         </button>
+                        <button class="btn btn-secondary" onclick="mostrarHistorial()">
+                            📊 Historial
+                        </button>
                         <button class="btn btn-secondary" onclick="cargarArchivos()">
                             🔄 Actualizar
                         </button>
@@ -255,6 +258,83 @@
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de historial de archivos -->
+    <div id="historyModal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>📊 Historial de Archivos</h3>
+                <button class="modal-close" onclick="cerrarModal('historyModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Estadísticas generales -->
+                <div class="history-stats">
+                    <div class="stat-card">
+                        <div class="stat-icon">📤</div>
+                        <div class="stat-info">
+                            <div class="stat-number" id="totalUploads">0</div>
+                            <div class="stat-label">Archivos Subidos</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🗑️</div>
+                        <div class="stat-info">
+                            <div class="stat-number" id="totalDeletes">0</div>
+                            <div class="stat-label">Archivos Eliminados</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💾</div>
+                        <div class="stat-info">
+                            <div class="stat-number" id="totalSize">0 MB</div>
+                            <div class="stat-label">Espacio Usado</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📁</div>
+                        <div class="stat-info">
+                            <div class="stat-number" id="totalTypes">0</div>
+                            <div class="stat-label">Tipos de Archivo</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filtros -->
+                <div class="history-filters">
+                    <div class="filter-group">
+                        <label for="actionFilter">Acción:</label>
+                        <select id="actionFilter" onchange="filtrarHistorial()">
+                            <option value="">Todas</option>
+                            <option value="upload">Subidas</option>
+                            <option value="delete">Eliminaciones</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="typeFilter">Tipo:</label>
+                        <select id="typeFilter" onchange="filtrarHistorial()">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="dateFilter">Fecha:</label>
+                        <select id="dateFilter" onchange="filtrarHistorial()">
+                            <option value="">Todas</option>
+                            <option value="today">Hoy</option>
+                            <option value="week">Esta semana</option>
+                            <option value="month">Este mes</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Lista de historial -->
+                <div class="history-list">
+                    <div id="historyItems">
+                        <p class="loading">Cargando historial...</p>
+                    </div>
                 </div>
             </div>
         </div>

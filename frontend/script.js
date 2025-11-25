@@ -2,6 +2,7 @@
 let selectedFiles = [];
 let currentUser = null;
 let userProfile = null; // Perfil del usuario actual
+let fileHistory = []; // Historial de archivos del usuario
 let currentPath = ''; // Ruta actual del explorador (ej: 'Documentos/Trabajo')
 let folderHistory = []; // Historial de navegación
 const API_BASE_URL = 'http://localhost:3000';
@@ -640,6 +641,225 @@ async function subirAvatar(file) {
     }
 }
 
+// ===== SISTEMA DE HISTORIAL DE ARCHIVOS =====
+
+// Registrar actividad en el historial
+async function registrarActividad(fileName, originalName, filePath, fileSize, fileType, action, folderPath = currentPath) {
+    if (!currentUser) return;
+    
+    try {
+        const { error } = await supabase
+            .from('file_history')
+            .insert([{
+                user_id: currentUser.id,
+                file_name: fileName,
+                original_name: originalName,
+                file_path: filePath,
+                file_size: fileSize,
+                file_type: fileType,
+                mime_type: getFileType(originalName),
+                action: action,
+                folder_path: folderPath,
+                metadata: {
+                    user_agent: navigator.userAgent,
+                    timestamp: new Date().toISOString()
+                }
+            }]);
+        
+        if (error) {
+            console.warn('Error al registrar actividad:', error);
+        } else {
+            console.log(`📊 Actividad registrada: ${action} - ${originalName}`);
+        }
+    } catch (error) {
+        console.warn('Error al registrar actividad:', error);
+    }
+}
+
+// Obtener tipo de archivo
+function getFileType(fileName) {
+    const extension = fileName.split('.').pop().toLowerCase();
+    const types = {
+        // Imágenes
+        'jpg': 'image', 'jpeg': 'image', 'png': 'image', 'gif': 'image', 'bmp': 'image', 'webp': 'image', 'svg': 'image',
+        // Videos
+        'mp4': 'video', 'avi': 'video', 'mov': 'video', 'wmv': 'video', 'flv': 'video', 'webm': 'video',
+        // Audio
+        'mp3': 'audio', 'wav': 'audio', 'flac': 'audio', 'aac': 'audio', 'ogg': 'audio',
+        // Documentos
+        'pdf': 'document', 'doc': 'document', 'docx': 'document', 'txt': 'document', 'rtf': 'document',
+        // Hojas de cálculo
+        'xls': 'spreadsheet', 'xlsx': 'spreadsheet', 'csv': 'spreadsheet',
+        // Presentaciones
+        'ppt': 'presentation', 'pptx': 'presentation',
+        // Archivos comprimidos
+        'zip': 'archive', 'rar': 'archive', '7z': 'archive', 'tar': 'archive', 'gz': 'archive',
+        // Código
+        'js': 'code', 'html': 'code', 'css': 'code', 'php': 'code', 'py': 'code', 'java': 'code', 'cpp': 'code'
+    };
+    
+    return types[extension] || 'other';
+}
+
+// Mostrar modal de historial
+async function mostrarHistorial() {
+    document.getElementById('historyModal').style.display = 'flex';
+    await cargarHistorial();
+}
+
+// Cargar historial de archivos
+async function cargarHistorial() {
+    if (!currentUser) return;
+    
+    try {
+        console.log('📊 Cargando historial de archivos...');
+        
+        const { data, error } = await supabase
+            .from('file_history')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .order('created_at', { ascending: false })
+            .limit(100);
+        
+        if (error) throw error;
+        
+        fileHistory = data || [];
+        console.log(`✅ Historial cargado: ${fileHistory.length} registros`);
+        
+        actualizarEstadisticasHistorial();
+        actualizarFiltrosHistorial();
+        mostrarHistorialItems();
+        
+    } catch (error) {
+        console.error('🔴 Error al cargar historial:', error);
+        document.getElementById('historyItems').innerHTML = '<p class="error-text">❌ Error al cargar historial</p>';
+    }
+}
+
+// Actualizar estadísticas del historial
+function actualizarEstadisticasHistorial() {
+    const uploads = fileHistory.filter(item => item.action === 'upload');
+    const deletes = fileHistory.filter(item => item.action === 'delete');
+    
+    // Total de subidas
+    document.getElementById('totalUploads').textContent = uploads.length;
+    
+    // Total de eliminaciones
+    document.getElementById('totalDeletes').textContent = deletes.length;
+    
+    // Espacio total usado (solo archivos existentes)
+    const totalSize = uploads.reduce((sum, item) => sum + (item.file_size || 0), 0);
+    document.getElementById('totalSize').textContent = formatFileSize(totalSize);
+    
+    // Tipos de archivo únicos
+    const uniqueTypes = [...new Set(fileHistory.map(item => item.file_type))];
+    document.getElementById('totalTypes').textContent = uniqueTypes.length;
+}
+
+// Actualizar filtros de historial
+function actualizarFiltrosHistorial() {
+    const typeFilter = document.getElementById('typeFilter');
+    const uniqueTypes = [...new Set(fileHistory.map(item => item.file_type))];
+    
+    // Limpiar opciones existentes (excepto "Todos")
+    typeFilter.innerHTML = '<option value="">Todos</option>';
+    
+    // Agregar tipos únicos
+    uniqueTypes.forEach(type => {
+        if (type) {
+            const option = document.createElement('option');
+            option.value = type;
+            option.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+            typeFilter.appendChild(option);
+        }
+    });
+}
+
+// Mostrar items del historial
+function mostrarHistorialItems(filteredHistory = fileHistory) {
+    const container = document.getElementById('historyItems');
+    
+    if (filteredHistory.length === 0) {
+        container.innerHTML = '<p class="empty-state">No hay actividad registrada</p>';
+        return;
+    }
+    
+    container.innerHTML = '';
+    
+    filteredHistory.forEach(item => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'history-item';
+        
+        const actionIcon = item.action === 'upload' ? '📤' : '🗑️';
+        const actionText = item.action === 'upload' ? 'Subido' : 'Eliminado';
+        const date = new Date(item.created_at).toLocaleString();
+        
+        itemDiv.innerHTML = `
+            <div class="history-action ${item.action}">
+                ${actionIcon}
+            </div>
+            <div class="history-details">
+                <div class="history-file-name">${item.original_name}</div>
+                <div class="history-meta">
+                    <span>📁 ${item.folder_path || 'Inicio'}</span>
+                    <span>📊 ${formatFileSize(item.file_size)}</span>
+                    <span>🏷️ ${item.file_type}</span>
+                    <span>⚡ ${actionText}</span>
+                </div>
+            </div>
+            <div class="history-date">
+                ${date}
+            </div>
+        `;
+        
+        container.appendChild(itemDiv);
+    });
+}
+
+// Filtrar historial
+function filtrarHistorial() {
+    const actionFilter = document.getElementById('actionFilter').value;
+    const typeFilter = document.getElementById('typeFilter').value;
+    const dateFilter = document.getElementById('dateFilter').value;
+    
+    let filtered = [...fileHistory];
+    
+    // Filtrar por acción
+    if (actionFilter) {
+        filtered = filtered.filter(item => item.action === actionFilter);
+    }
+    
+    // Filtrar por tipo
+    if (typeFilter) {
+        filtered = filtered.filter(item => item.file_type === typeFilter);
+    }
+    
+    // Filtrar por fecha
+    if (dateFilter) {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        filtered = filtered.filter(item => {
+            const itemDate = new Date(item.created_at);
+            
+            switch (dateFilter) {
+                case 'today':
+                    return itemDate >= today;
+                case 'week':
+                    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    return itemDate >= weekAgo;
+                case 'month':
+                    const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+                    return itemDate >= monthAgo;
+                default:
+                    return true;
+            }
+        });
+    }
+    
+    mostrarHistorialItems(filtered);
+}
+
 // ===== GESTIÓN DE CARPETAS =====
 
 // Mostrar modal para crear carpeta
@@ -864,6 +1084,17 @@ async function subirArchivos() {
             
             console.log(`✅ Archivo subido: ${file.name}`);
             
+            // Registrar actividad en el historial
+            await registrarActividad(
+                fileName,
+                file.name,
+                filePath,
+                file.size,
+                getFileType(file.name),
+                'upload',
+                currentPath
+            );
+            
             // Actualizar progreso
             const progress = ((i + 1) / selectedFiles.length) * 100;
             progressFill.style.width = progress + '%';
@@ -1054,6 +1285,17 @@ async function eliminarArchivo(fileName, originalName) {
         console.log(`✅ Archivo eliminado: ${originalName}`);
         mostrarMensaje(`✅ ${originalName} eliminado exitosamente`, 'success');
         
+        // Registrar actividad en el historial
+        await registrarActividad(
+            fileName,
+            originalName,
+            filePath,
+            0, // No conocemos el tamaño del archivo eliminado
+            getFileType(originalName),
+            'delete',
+            currentPath
+        );
+        
         // Actualizar lista de archivos
         cargarArchivos();
         
@@ -1087,3 +1329,6 @@ window.eliminarCarpeta = eliminarCarpeta;
 window.mostrarPerfil = mostrarPerfil;
 window.guardarPerfil = guardarPerfil;
 window.cambiarAvatar = cambiarAvatar;
+// Funciones del sistema de historial
+window.mostrarHistorial = mostrarHistorial;
+window.filtrarHistorial = filtrarHistorial;
