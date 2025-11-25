@@ -315,6 +315,8 @@ function obtenerRutaCompleta(path = currentPath) {
 
 // Navegar a una carpeta específica
 function navegarACarpeta(path) {
+    console.log(`📁 Intentando navegar a: ${path || 'Inicio'}`);
+    
     if (path !== currentPath) {
         folderHistory.push(currentPath);
     }
@@ -325,7 +327,7 @@ function navegarACarpeta(path) {
     actualizarBotonAtras();
     cargarArchivos();
     
-    console.log(`📁 Navegando a: ${path || 'Inicio'}`);
+    console.log(`✅ Navegación completada a: ${path || 'Inicio'}`);
 }
 
 // Navegar hacia atrás
@@ -1002,6 +1004,19 @@ async function eliminarCarpeta(folderPath, folderName) {
     try {
         mostrarMensaje(`🗑️ Eliminando carpeta: ${folderName}`, 'info');
         
+        // Eliminar el archivo marcador de la carpeta
+        const currentFolder = obtenerRutaCompleta();
+        const markerPath = `${currentFolder}/${folderName}.folder`;
+        
+        const { error: deleteMarkerError } = await supabase.storage
+            .from('midrive-files')
+            .remove([markerPath]);
+        
+        if (deleteMarkerError) {
+            console.warn('Error al eliminar marcador:', deleteMarkerError);
+        }
+        
+        // Eliminar contenido de la carpeta
         const fullPath = obtenerRutaCompleta(folderPath);
         
         // Listar todos los archivos en la carpeta
@@ -1009,20 +1024,16 @@ async function eliminarCarpeta(folderPath, folderName) {
             .from('midrive-files')
             .list(fullPath, { limit: 1000 });
         
-        if (listError) {
-            throw new Error(`Error al listar archivos: ${listError.message}`);
-        }
-        
-        // Eliminar todos los archivos
-        const filesToDelete = files.map(file => `${fullPath}/${file.name}`);
-        
-        if (filesToDelete.length > 0) {
+        if (!listError && files && files.length > 0) {
+            // Eliminar todos los archivos
+            const filesToDelete = files.map(file => `${fullPath}/${file.name}`);
+            
             const { error: deleteError } = await supabase.storage
                 .from('midrive-files')
                 .remove(filesToDelete);
             
             if (deleteError) {
-                throw new Error(`Error al eliminar archivos: ${deleteError.message}`);
+                console.warn('Error al eliminar contenido:', deleteError);
             }
         }
         
@@ -1160,27 +1171,18 @@ async function cargarArchivos() {
             const files = [];
             
             data.forEach(item => {
-                if (item.name === '.folder') {
-                    // Es una carpeta
-                    const folderName = currentFolder.split('/').pop();
-                    if (folderName) {
-                        folders.push({
-                            name: folderName,
-                            path: currentPath,
-                            type: 'folder'
-                        });
-                    }
-                } else if (item.name.endsWith('.folder')) {
-                    // Es un marcador de subcarpeta
+                if (item.name.endsWith('.folder')) {
+                    // Es un marcador de carpeta
                     const folderName = item.name.replace('.folder', '');
                     const folderPath = currentPath ? `${currentPath}/${folderName}` : folderName;
                     folders.push({
                         name: folderName,
                         path: folderPath,
-                        type: 'folder'
+                        type: 'folder',
+                        markerFile: item.name
                     });
-                } else if (!item.name.startsWith('.')) {
-                    // Es un archivo regular
+                } else if (!item.name.startsWith('.') && !item.name.includes('_avatar.')) {
+                    // Es un archivo regular (excluir avatares)
                     files.push(item);
                 }
             });
@@ -1270,15 +1272,18 @@ async function eliminarArchivo(fileName, originalName) {
     try {
         mostrarMensaje(`🗑️ Eliminando: ${originalName}`, 'info');
         console.log(`🗑️ Eliminando archivo: ${fileName}`);
+        console.log(`📁 Carpeta actual: ${currentPath}`);
         
         // Eliminar archivo directamente desde Supabase Storage
         const filePath = `${obtenerRutaCompleta()}/${fileName}`;
+        console.log(`🗂️ Ruta completa: ${filePath}`);
         
         const { data, error } = await supabase.storage
             .from('midrive-files')
             .remove([filePath]);
         
         if (error) {
+            console.error('Error de Supabase:', error);
             throw new Error(`Error al eliminar ${originalName}: ${error.message}`);
         }
         
