@@ -897,18 +897,6 @@ async function crearCarpeta(event) {
     try {
         mostrarMensaje(`📁 Creando carpeta: ${folderName}`, 'info');
         
-        // Crear archivo .folder para representar la carpeta en Supabase Storage
-        const folderPath = currentPath ? `${currentPath}/${folderName}` : folderName;
-        const fullPath = obtenerRutaCompleta(folderPath);
-        const folderMarkerPath = `${fullPath}/.folder`;
-        
-        // Crear un archivo marcador para la carpeta
-        const folderData = new Blob([JSON.stringify({
-            name: folderName,
-            created: new Date().toISOString(),
-            type: 'folder'
-        })], { type: 'application/json' });
-        
         // Verificar si la carpeta ya existe
         const { data: existingFiles } = await supabase.storage
             .from('midrive-files')
@@ -920,6 +908,20 @@ async function crearCarpeta(event) {
             throw new Error(`La carpeta "${folderName}" ya existe`);
         }
         
+        // Crear archivo marcador JUNTO a la carpeta (no dentro)
+        const currentFolder = obtenerRutaCompleta();
+        const folderMarkerPath = `${currentFolder}/${folderName}.folder`;
+        
+        // Crear un archivo marcador para la carpeta
+        const folderData = new Blob([JSON.stringify({
+            name: folderName,
+            created: new Date().toISOString(),
+            type: 'folder',
+            path: currentPath ? `${currentPath}/${folderName}` : folderName
+        })], { type: 'application/json' });
+        
+        console.log(`📁 Creando marcador en: ${folderMarkerPath}`);
+        
         const { data, error } = await supabase.storage
             .from('midrive-files')
             .upload(folderMarkerPath, folderData, {
@@ -928,6 +930,7 @@ async function crearCarpeta(event) {
             });
         
         if (error) {
+            console.error('Error de Supabase:', error);
             if (error.message.includes('already exists')) {
                 throw new Error(`La carpeta "${folderName}" ya existe`);
             }
@@ -937,8 +940,14 @@ async function crearCarpeta(event) {
         console.log(`✅ Carpeta creada: ${folderName}`);
         mostrarMensaje(`✅ Carpeta "${folderName}" creada exitosamente`, 'success');
         
-        cerrarModal();
-        cargarArchivos();
+        // Cerrar modal y limpiar
+        cerrarModal('createFolderModal');
+        document.getElementById('folderName').value = '';
+        
+        // Actualizar lista inmediatamente
+        setTimeout(() => {
+            cargarArchivos();
+        }, 300);
         
     } catch (error) {
         mostrarMensaje(`❌ Error: ${error.message}`, 'error');
@@ -1090,6 +1099,42 @@ async function subirArchivos() {
     }
 }
 
+// ===== LIMPIAR ARCHIVOS HUÉRFANOS =====
+async function limpiarArchivosHuerfanos() {
+    if (!currentUser) return;
+    
+    try {
+        const currentFolder = obtenerRutaCompleta();
+        const { data, error } = await supabase.storage
+            .from('midrive-files')
+            .list(currentFolder, { limit: 1000 });
+        
+        if (error || !data) return;
+        
+        // Buscar archivos que no deberían estar ahí
+        const archivosAEliminar = [];
+        
+        data.forEach(item => {
+            // Eliminar archivos sin extensión que no sean .folder
+            if (!item.name.includes('.') && !item.name.endsWith('.folder')) {
+                archivosAEliminar.push(`${currentFolder}/${item.name}`);
+                console.log(`🧹 Marcando para eliminar archivo huérfano: ${item.name}`);
+            }
+        });
+        
+        // Eliminar archivos huérfanos
+        if (archivosAEliminar.length > 0) {
+            console.log(`🧹 Eliminando ${archivosAEliminar.length} archivos huérfanos...`);
+            await supabase.storage
+                .from('midrive-files')
+                .remove(archivosAEliminar);
+        }
+        
+    } catch (error) {
+        console.warn('Error al limpiar archivos huérfanos:', error);
+    }
+}
+
 // ===== CARGAR LISTA DE ARCHIVOS =====
 async function cargarArchivos() {
     if (!currentUser) {
@@ -1101,6 +1146,9 @@ async function cargarArchivos() {
     filesList.innerHTML = '<p class="loading">Cargando archivos...</p>';
     
     console.log('🔄 Cargando lista de archivos...');
+    
+    // Limpiar archivos huérfanos primero
+    await limpiarArchivosHuerfanos();
     
     try {
         // Listar archivos y carpetas desde Supabase Storage
@@ -1126,19 +1174,28 @@ async function cargarArchivos() {
             const files = [];
             
             data.forEach(item => {
+                console.log(`🔍 Procesando item: ${item.name}`);
+                
                 if (item.name.endsWith('.folder')) {
                     // Es un marcador de carpeta
                     const folderName = item.name.replace('.folder', '');
                     const folderPath = currentPath ? `${currentPath}/${folderName}` : folderName;
+                    console.log(`📁 Carpeta detectada: ${folderName}`);
                     folders.push({
                         name: folderName,
                         path: folderPath,
                         type: 'folder',
                         markerFile: item.name
                     });
-                } else if (!item.name.startsWith('.') && !item.name.includes('_avatar.')) {
-                    // Es un archivo regular (excluir avatares)
+                } else if (!item.name.startsWith('.') && 
+                          !item.name.includes('_avatar.') && 
+                          !item.name.endsWith('.folder') &&
+                          item.name !== '.emptyFolderPlaceholder') {
+                    // Es un archivo regular (excluir avatares, marcadores y placeholders)
+                    console.log(`📄 Archivo detectado: ${item.name}`);
                     files.push(item);
+                } else {
+                    console.log(`⚠️ Item ignorado: ${item.name}`);
                 }
             });
             
@@ -1267,7 +1324,7 @@ async function eliminarArchivo(fileName, originalName, isFolder = false) {
         // Actualizar lista de archivos inmediatamente
         setTimeout(() => {
             cargarArchivos();
-        }, 500);
+        }, 200);
         
     } catch (error) {
         mostrarMensaje(`❌ Error: ${error.message}`, 'error');
