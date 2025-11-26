@@ -462,6 +462,17 @@ h1 {
     border-color: #0891b2;
 }
 
+.btn-error {
+    background: #dc2626;
+    color: white;
+    border: 1px solid #dc2626;
+}
+
+.btn-error:hover {
+    background: #b91c1c;
+    border-color: #b91c1c;
+}
+
 /* ===== ARCHIVOS SELECCIONADOS ===== */
 .selected-files {
     margin: 2rem 0 1rem 0;

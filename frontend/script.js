@@ -1008,6 +1008,23 @@ async function renombrarCarpeta(oldPath, oldName) {
             if (moveError) {
                 console.warn(`Error moviendo ${file.name}:`, moveError);
             }
+            
+            const originalName = file.name;
+            const fileName = newFilePath.split('/').pop();
+            const itemType = file.name.endsWith('.folder') ? 'carpeta' : 'archivo';
+            const esArchivoProblemático = archivosProblematicos.includes(originalName);
+            
+            if (esArchivoProblemático) {
+                mostrarMensaje(`⚠️ Archivo problemático "${originalName}" eliminado con método agresivo`, 'warning');
+                
+                // Para archivos problemáticos, ejecutar limpieza adicional después de un breve delay
+                setTimeout(async () => {
+                    console.log(`🧹 Ejecutando limpieza adicional para: ${originalName}`);
+                    await limpiezaAgresiva(originalName, fileName);
+                }, 1000);
+            } else {
+                mostrarMensaje(`✅ ${itemType} eliminado exitosamente`, 'success');
+            }
         }
         
         mostrarMensaje(`✅ Carpeta renombrada exitosamente`, 'success');
@@ -1492,8 +1509,9 @@ async function eliminarArchivo(fileName, originalName, isFolder = false) {
         console.log(`📁 Carpeta actual: ${currentPath}`);
         console.log(`🔍 Archivo original: ${originalName}`);
         
-        // Ya no detectamos archivos como problemáticos automáticamente
-        const esArchivoProblemático = false; // Deshabilitado
+        // Detectar archivos problemáticos específicos
+        const archivosProblematicos = ['Emile bb', 'emile', 'Archivos'];
+        const esArchivoProblemático = archivosProblematicos.includes(originalName) || archivosProblematicos.includes(fileName);
         
         let rutasAIntentar = [];
         
@@ -1566,9 +1584,81 @@ async function eliminarArchivo(fileName, originalName, isFolder = false) {
             cargarArchivos();
         }, 200);
         
+        if (esArchivoProblemático) {
+            mostrarMensaje(`⚠️ Archivo problemático "${originalName}" eliminado con método agresivo`, 'warning');
+            
+            // Para archivos problemáticos, ejecutar limpieza adicional después de un breve delay
+            setTimeout(async () => {
+                console.log(`🧹 Ejecutando limpieza adicional para: ${originalName}`);
+                await limpiezaAgresiva(originalName, fileName);
+            }, 1000);
+        }
+        
     } catch (error) {
         mostrarMensaje(`❌ Error: ${error.message}`, 'error');
         console.error('🔴 Error al eliminar:', error);
+    }
+}
+
+// ===== LIMPIEZA AGRESIVA PARA ARCHIVOS PROBLEMÁTICOS =====
+async function limpiezaAgresiva(originalName, fileName) {
+    if (!currentUser) return;
+    
+    console.log(`🧹 LIMPIEZA AGRESIVA para: ${originalName}`);
+    
+    try {
+        const currentFolder = obtenerRutaCompleta();
+        
+        // Todas las variaciones posibles de rutas para este archivo específico
+        const variaciones = [
+            `${currentFolder}/${originalName}`,
+            `${currentFolder}/${fileName}`,
+            `users/${currentUser.id}/${originalName}`,
+            `users/${currentUser.id}/${fileName}`,
+            originalName,
+            fileName,
+            `${currentFolder}/${encodeURIComponent(originalName)}`,
+            `users/${currentUser.id}/${encodeURIComponent(originalName)}`,
+            encodeURIComponent(originalName),
+            `${currentFolder}/${originalName.replace(/ /g, '_')}`,
+            `users/${currentUser.id}/${originalName.replace(/ /g, '_')}`,
+            originalName.replace(/ /g, '_'),
+            `${currentFolder}/${originalName.replace(/ /g, '-')}`,
+            `users/${currentUser.id}/${originalName.replace(/ /g, '-')}`,
+            originalName.replace(/ /g, '-'),
+            `${currentFolder}/${originalName.replace(/ /g, '%20')}`,
+            `users/${currentUser.id}/${originalName.replace(/ /g, '%20')}`,
+            originalName.replace(/ /g, '%20')
+        ];
+        
+        let eliminados = 0;
+        
+        for (const variacion of variaciones) {
+            try {
+                console.log(`🔄 Limpieza agresiva - Intentando: ${variacion}`);
+                const { error } = await supabase.storage
+                    .from('midrive-files')
+                    .remove([variacion]);
+                
+                if (!error) {
+                    eliminados++;
+                    console.log(`✅ Eliminado en limpieza agresiva: ${variacion}`);
+                }
+            } catch (e) {
+                // Ignorar errores en limpieza agresiva
+            }
+        }
+        
+        if (eliminados > 0) {
+            console.log(`🧹 Limpieza agresiva completada: ${eliminados} variaciones eliminadas`);
+            // Recargar archivos después de la limpieza
+            setTimeout(() => {
+                cargarArchivos();
+            }, 500);
+        }
+        
+    } catch (error) {
+        console.error('Error en limpieza agresiva:', error);
     }
 }
 
@@ -2281,3 +2371,63 @@ window.toggleAnalytics = toggleAnalytics;
 window.confirmarLimpiezaTotal = confirmarLimpiezaTotal;
 window.exportarConfiguracion = exportarConfiguracion;
 window.generarEnlaceCompartido = generarEnlaceCompartido;
+
+// ===== ELIMINAR ARCHIVOS PROBLEMÁTICOS ESPECÍFICOS =====
+async function eliminarArchivosProblematicos() {
+    if (!currentUser) {
+        mostrarMensaje('❌ Debes iniciar sesión', 'error');
+        return;
+    }
+    
+    const confirmacion = confirm(
+        '🔥 ELIMINAR ARCHIVOS PROBLEMÁTICOS\n\n' +
+        'Esta función eliminará los archivos "Emile bb", "emile" y "Archivos" que siguen reapareciendo.\n\n' +
+        '¿Continuar?'
+    );
+    
+    if (!confirmacion) return;
+    
+    mostrarMensaje('🔥 Eliminando archivos problemáticos...', 'info');
+    console.log('🔥 Iniciando eliminación de archivos problemáticos específicos');
+    
+    const archivosProblematicos = ['Emile bb', 'emile', 'Archivos'];
+    let totalEliminados = 0;
+    
+    for (const archivo of archivosProblematicos) {
+        console.log(`🔥 Procesando archivo problemático: ${archivo}`);
+        
+        try {
+            // Usar la función de limpieza agresiva para cada archivo
+            await limpiezaAgresiva(archivo, archivo);
+            
+            // También intentar eliminar con timestamp (por si tiene formato de archivo subido)
+            const currentFolder = obtenerRutaCompleta();
+            const { data: files } = await supabase.storage
+                .from('midrive-files')
+                .list(currentFolder, { limit: 1000 });
+            
+            if (files) {
+                for (const file of files) {
+                    const originalName = file.name.replace(/^\d+_/, '');
+                    if (originalName === archivo) {
+                        console.log(`🔥 Encontrado archivo con timestamp: ${file.name}`);
+                        await limpiezaAgresiva(archivo, file.name);
+                        totalEliminados++;
+                    }
+                }
+            }
+            
+        } catch (error) {
+            console.error(`Error eliminando ${archivo}:`, error);
+        }
+    }
+    
+    mostrarMensaje(`🔥 Limpieza de archivos problemáticos completada. Se procesaron ${archivosProblematicos.length} archivos.`, 'success');
+    
+    // Recargar la lista después de un delay
+    setTimeout(() => {
+        cargarArchivos();
+    }, 2000);
+}
+
+window.eliminarArchivosProblematicos = eliminarArchivosProblematicos;
