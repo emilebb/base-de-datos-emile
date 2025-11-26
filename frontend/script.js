@@ -69,6 +69,11 @@ function mostrarAplicacion() {
     actualizarBreadcrumb();
     actualizarTituloCarpeta();
     actualizarBotonAtras();
+    setupSearchAndFilters();
+    
+    // Cargar configuración guardada
+    loadSettings();
+    
     cargarArchivos();
     
     // Iniciar monitoreo automático de archivos problemáticos
@@ -186,7 +191,7 @@ async function cerrarSesion() {
 // ===== INICIALIZACIÓN =====
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 MiDrive Frontend iniciado');
-    verificarSesion(); // Verificar si hay usuario logueado
+    verificarSesion();
     setupDragAndDrop();
     setupEventListeners();
 });
@@ -1410,65 +1415,47 @@ async function cargarArchivos() {
                 }
             });
             
-            // Mostrar carpetas primero
-            folders.forEach(folder => {
-                const folderDiv = document.createElement('div');
-                folderDiv.className = 'folder-item folder';
-                folderDiv.innerHTML = `
-                    <div class="folder-info" ondblclick="navegarACarpeta('${folder.path}')">
-                        <div class="folder-icon">📁</div>
-                        <div class="folder-name">${folder.name}</div>
-                    </div>
-                    <div class="folder-actions">
-                        <button class="btn btn-secondary" onclick="renombrarCarpeta('${folder.path}', '${folder.name}')">
-                            ✏️ Renombrar
-                        </button>
-                        <button class="btn btn-danger" onclick="eliminarArchivo('${folder.markerFile}', '${folder.name}', true)">
-                            🗑️ Eliminar
-                        </button>
-                    </div>
-                `;
-                filesList.appendChild(folderDiv);
-            });
+            // Aplicar filtros y búsqueda
+            let filteredFolders = [...folders];
+            let filteredFiles = [...files];
             
-            // Mostrar archivos después
-            files.forEach(file => {
-                // Obtener URL pública
-                const { data: publicUrlData } = supabase.storage
-                    .from('midrive-files')
-                    .getPublicUrl(`${currentFolder}/${file.name}`);
-
-                // Extraer nombre original (remover timestamp)
-                const originalName = file.name.replace(/^\d+_/, '');
-                
-                // Ya no detectamos archivos como problemáticos automáticamente
-                const esArchivoProblemático = false; // Deshabilitado
-                const icono = '📄';
-                const claseExtra = '';
-                
-                const fileDiv = document.createElement('div');
-                fileDiv.className = `saved-file${claseExtra}`;
-                fileDiv.innerHTML = `
-                    <div class="file-info">
-                        <div class="file-name">${icono} ${originalName}${esArchivoProblemático ? ' (problemático)' : ''}</div>
-                        <div class="file-size">${formatFileSize(file.metadata?.size || 0)}</div>
-                    </div>
-                    <div class="file-actions">
-                        ${!esArchivoProblemático ? `
-                        <button class="btn btn-secondary" onclick="descargarArchivo('${publicUrlData.publicUrl}')">
-                            ⬇️ Descargar
-                        </button>
-                        ` : ''}
-                        <button class="btn btn-danger" onclick="eliminarArchivo('${file.name}', '${originalName}', ${esArchivoProblemático})">
-                            🗑️ Eliminar${esArchivoProblemático ? ' (Forzar)' : ''}
-                        </button>
-                    </div>
-                `;
-                filesList.appendChild(fileDiv);
-            });
+            // Aplicar búsqueda
+            if (currentSearchTerm) {
+                filteredFolders = filteredFolders.filter(folder => 
+                    folder.name.toLowerCase().includes(currentSearchTerm)
+                );
+                filteredFiles = filteredFiles.filter(file => {
+                    const originalName = file.name.replace(/^\d+_/, '');
+                    return originalName.toLowerCase().includes(currentSearchTerm);
+                });
+            }
             
-            if (folders.length === 0 && files.length === 0) {
-                filesList.innerHTML = '<p class="empty-state">Esta carpeta está vacía</p>';
+            // Aplicar filtro por tipo
+            if (currentFilter !== 'all') {
+                if (currentFilter === 'folders') {
+                    filteredFiles = [];
+                } else {
+                    filteredFolders = currentFilter === 'folders' ? filteredFolders : [];
+                    filteredFiles = filteredFiles.filter(file => {
+                        const originalName = file.name.replace(/^\d+_/, '');
+                        const fileType = getFileType(originalName);
+                        
+                        switch (currentFilter) {
+                            case 'images': return fileType === 'Imagen';
+                            case 'documents': return fileType === 'Documento';
+                            case 'videos': return fileType === 'Video';
+                            case 'audio': return fileType === 'Audio';
+                            default: return true;
+                        }
+                    });
+                }
+            }
+            
+            // Mostrar según la vista seleccionada
+            if (currentView === 'gallery') {
+                renderGalleryView(filteredFolders, filteredFiles, currentFolder);
+            } else {
+                renderListView(filteredFolders, filteredFiles, currentFolder);
             }
         } else {
             filesList.innerHTML = '<p class="empty-state">Esta carpeta está vacía</p>';
@@ -1617,3 +1604,680 @@ window.limpiarTodo = limpiarTodo;
 window.monitorearArchivos = monitorearArchivos;
 // Función de eliminación definitiva
 window.eliminarDefinitivo = eliminarDefinitivo;
+
+// ===== SISTEMA DE PREVISUALIZACIÓN =====
+let currentPreviewFile = null;
+
+function previsualizarArchivo(fileName, originalName) {
+    currentPreviewFile = { fileName, originalName };
+    
+    // Obtener información del archivo
+    const fileExtension = originalName.split('.').pop().toLowerCase();
+    const fileType = getFileType(originalName);
+    
+    // Obtener URL pública del archivo
+    const { data: publicUrlData } = supabase.storage
+        .from('midrive-files')
+        .getPublicUrl(`${obtenerRutaCompleta()}/${fileName}`);
+    
+    // Configurar modal
+    document.getElementById('previewTitle').textContent = `Vista Previa - ${originalName}`;
+    document.getElementById('previewFileName').textContent = originalName;
+    document.getElementById('previewFileType').textContent = `Tipo: ${fileType}`;
+    
+    // Configurar botón de descarga
+    const downloadBtn = document.getElementById('previewDownloadBtn');
+    downloadBtn.onclick = () => descargarArchivo(publicUrlData.publicUrl);
+    
+    // Generar contenido de previsualización
+    generatePreviewContent(publicUrlData.publicUrl, fileExtension, fileType, originalName);
+    
+    // Mostrar modal
+    document.getElementById('previewModal').style.display = 'flex';
+}
+
+function generatePreviewContent(url, extension, type, fileName) {
+    const previewContent = document.getElementById('previewContent');
+    previewContent.innerHTML = '';
+    
+    try {
+        if (type === 'Imagen') {
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = fileName;
+            img.onerror = () => {
+                previewContent.innerHTML = '<div class="unsupported">❌ No se pudo cargar la imagen</div>';
+            };
+            previewContent.appendChild(img);
+            
+        } else if (type === 'Video') {
+            const video = document.createElement('video');
+            video.src = url;
+            video.controls = true;
+            video.onerror = () => {
+                previewContent.innerHTML = '<div class="unsupported">❌ No se pudo cargar el video</div>';
+            };
+            previewContent.appendChild(video);
+            
+        } else if (type === 'Audio') {
+            const audio = document.createElement('audio');
+            audio.src = url;
+            audio.controls = true;
+            audio.onerror = () => {
+                previewContent.innerHTML = '<div class="unsupported">❌ No se pudo cargar el audio</div>';
+            };
+            previewContent.appendChild(audio);
+            
+        } else if (extension === 'pdf') {
+            const iframe = document.createElement('iframe');
+            iframe.src = url;
+            iframe.onerror = () => {
+                previewContent.innerHTML = '<div class="unsupported">❌ No se pudo cargar el PDF</div>';
+            };
+            previewContent.appendChild(iframe);
+            
+        } else if (['txt', 'md', 'json', 'js', 'css', 'html', 'xml', 'csv'].includes(extension)) {
+            // Cargar contenido de texto
+            fetch(url)
+                .then(response => response.text())
+                .then(text => {
+                    const textDiv = document.createElement('div');
+                    textDiv.className = 'text-preview';
+                    textDiv.textContent = text;
+                    previewContent.appendChild(textDiv);
+                })
+                .catch(() => {
+                    previewContent.innerHTML = '<div class="unsupported">❌ No se pudo cargar el archivo de texto</div>';
+                });
+                
+        } else {
+            previewContent.innerHTML = `
+                <div class="unsupported">
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">📄</div>
+                    <div>Vista previa no disponible para este tipo de archivo</div>
+                    <div style="margin-top: 1rem; font-size: 0.9rem; color: var(--text-secondary);">
+                        Tipo: ${type} | Extensión: .${extension}
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error generando previsualización:', error);
+        previewContent.innerHTML = '<div class="unsupported">❌ Error al generar la vista previa</div>';
+    }
+}
+
+function cerrarPreview() {
+    document.getElementById('previewModal').style.display = 'none';
+    currentPreviewFile = null;
+}
+
+// ===== SISTEMA DE RENOMBRAR =====
+let currentRenameFile = null;
+
+function mostrarRename(fileName, originalName, isFolder = false) {
+    currentRenameFile = { fileName, originalName, isFolder };
+    
+    // Configurar modal
+    document.getElementById('newFileName').value = originalName;
+    document.getElementById('renameModal').style.display = 'flex';
+    document.getElementById('newFileName').focus();
+    document.getElementById('newFileName').select();
+}
+
+async function confirmarRename(event) {
+    event.preventDefault();
+    
+    if (!currentRenameFile) return;
+    
+    const newName = document.getElementById('newFileName').value.trim();
+    if (!newName) {
+        mostrarMensaje('❌ El nombre no puede estar vacío', 'error');
+        return;
+    }
+    
+    if (newName === currentRenameFile.originalName) {
+        cerrarRename();
+        return;
+    }
+    
+    try {
+        mostrarMensaje(`✏️ Renombrando ${currentRenameFile.isFolder ? 'carpeta' : 'archivo'}...`, 'info');
+        
+        const currentFolder = obtenerRutaCompleta();
+        const oldPath = `${currentFolder}/${currentRenameFile.fileName}`;
+        const newPath = `${currentFolder}/${newName}`;
+        
+        // Copiar archivo con nuevo nombre
+        const { data: copyData, error: copyError } = await supabase.storage
+            .from('midrive-files')
+            .copy(oldPath, newPath);
+        
+        if (copyError) throw copyError;
+        
+        // Eliminar archivo original
+        const { error: deleteError } = await supabase.storage
+            .from('midrive-files')
+            .remove([oldPath]);
+        
+        if (deleteError) {
+            console.warn('Error eliminando archivo original:', deleteError);
+        }
+        
+        // Registrar actividad
+        await registrarActividad(
+            newName,
+            newName,
+            newPath,
+            0,
+            currentRenameFile.isFolder ? 'folder' : getFileType(newName),
+            'rename',
+            currentPath
+        );
+        
+        mostrarMensaje(`✅ ${currentRenameFile.isFolder ? 'Carpeta' : 'Archivo'} renombrado exitosamente`, 'success');
+        cerrarRename();
+        
+        // Actualizar lista
+        setTimeout(() => {
+            cargarArchivos();
+        }, 500);
+        
+    } catch (error) {
+        console.error('Error renombrando:', error);
+        mostrarMensaje(`❌ Error al renombrar: ${error.message}`, 'error');
+    }
+}
+
+function cerrarRename() {
+    document.getElementById('renameModal').style.display = 'none';
+    currentRenameFile = null;
+}
+
+// ===== SISTEMA DE BÚSQUEDA Y FILTROS =====
+let currentView = 'list'; // 'list' o 'gallery'
+let currentFilter = 'all'; // 'all', 'images', 'documents', 'videos', etc.
+let currentSearchTerm = '';
+
+function setupSearchAndFilters() {
+    // Agregar barra de búsqueda y filtros al HTML dinámicamente
+    const mainContent = document.querySelector('.main-content');
+    const searchFiltersHTML = `
+        <div class="search-filters">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="🔍 Buscar archivos..." 
+                       oninput="buscarArchivos(this.value)">
+            </div>
+            <div class="filter-dropdown">
+                <select id="typeFilter" onchange="filtrarPorTipo(this.value)">
+                    <option value="all">📁 Todos los tipos</option>
+                    <option value="images">🖼️ Imágenes</option>
+                    <option value="documents">📄 Documentos</option>
+                    <option value="videos">🎥 Videos</option>
+                    <option value="audio">🎵 Audio</option>
+                    <option value="folders">📁 Carpetas</option>
+                </select>
+            </div>
+            <div class="view-toggle">
+                <button class="btn ${currentView === 'list' ? 'active' : ''}" onclick="cambiarVista('list')">
+                    📋 Lista
+                </button>
+                <button class="btn ${currentView === 'gallery' ? 'active' : ''}" onclick="cambiarVista('gallery')">
+                    🖼️ Galería
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // Insertar después de los botones de control
+    const controlButtons = document.querySelector('.control-buttons');
+    if (controlButtons && !document.getElementById('searchInput')) {
+        controlButtons.insertAdjacentHTML('afterend', searchFiltersHTML);
+    }
+}
+
+function buscarArchivos(searchTerm) {
+    currentSearchTerm = searchTerm.toLowerCase();
+    aplicarFiltros();
+}
+
+function filtrarPorTipo(tipo) {
+    currentFilter = tipo;
+    aplicarFiltros();
+}
+
+function cambiarVista(vista) {
+    currentView = vista;
+    
+    // Actualizar botones activos
+    document.querySelectorAll('.view-toggle .btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+    
+    aplicarFiltros();
+}
+
+function aplicarFiltros() {
+    // Esta función se llamará desde cargarArchivos() para aplicar filtros
+    cargarArchivos();
+}
+
+// ===== FUNCIONES DE RENDERIZADO =====
+function renderListView(folders, files, currentFolder) {
+    const filesList = document.getElementById('filesList');
+    filesList.innerHTML = '';
+    filesList.className = 'files-list list-view';
+    
+    // Mostrar carpetas primero
+    folders.forEach(folder => {
+        const folderDiv = document.createElement('div');
+        folderDiv.className = 'folder-item folder';
+        folderDiv.innerHTML = `
+            <div class="folder-info" ondblclick="navegarACarpeta('${folder.path}')">
+                <div class="folder-icon">📁</div>
+                <div class="folder-name">${folder.name}</div>
+            </div>
+            <div class="folder-actions">
+                <button class="btn btn-secondary" onclick="mostrarRename('${folder.markerFile}', '${folder.name}', true)">
+                    ✏️ Renombrar
+                </button>
+                <button class="btn btn-danger" onclick="eliminarArchivo('${folder.markerFile}', '${folder.name}', true)">
+                    🗑️ Eliminar
+                </button>
+            </div>
+        `;
+        filesList.appendChild(folderDiv);
+    });
+    
+    // Mostrar archivos
+    files.forEach(file => {
+        const { data: publicUrlData } = supabase.storage
+            .from('midrive-files')
+            .getPublicUrl(`${currentFolder}/${file.name}`);
+
+        const originalName = file.name.replace(/^\d+_/, '');
+        const fileType = getFileType(originalName);
+        const icono = getFileIcon(fileType);
+        
+        const fileDiv = document.createElement('div');
+        fileDiv.className = 'saved-file';
+        fileDiv.innerHTML = `
+            <div class="file-info">
+                <div class="file-name">${icono} ${originalName}</div>
+                <div class="file-size">${formatFileSize(file.metadata?.size || 0)}</div>
+            </div>
+            <div class="file-actions">
+                <button class="btn btn-primary" onclick="previsualizarArchivo('${file.name}', '${originalName}')">
+                    👁️ Ver
+                </button>
+                <button class="btn btn-secondary" onclick="descargarArchivo('${publicUrlData.publicUrl}')">
+                    ⬇️ Descargar
+                </button>
+                <button class="btn btn-info" onclick="generarEnlaceCompartido('${file.name}', '${originalName}')">
+                    🔗 Compartir
+                </button>
+                <button class="btn btn-warning" onclick="mostrarRename('${file.name}', '${originalName}', false)">
+                    ✏️ Renombrar
+                </button>
+                <button class="btn btn-danger" onclick="eliminarArchivo('${file.name}', '${originalName}', false)">
+                    🗑️ Eliminar
+                </button>
+            </div>
+        `;
+        filesList.appendChild(fileDiv);
+    });
+    
+    if (folders.length === 0 && files.length === 0) {
+        filesList.innerHTML = '<p class="empty-state">No se encontraron elementos</p>';
+    }
+}
+
+function renderGalleryView(folders, files, currentFolder) {
+    const filesList = document.getElementById('filesList');
+    filesList.innerHTML = '';
+    filesList.className = 'files-list gallery-view';
+    
+    // Mostrar carpetas primero
+    folders.forEach(folder => {
+        const galleryItem = document.createElement('div');
+        galleryItem.className = 'gallery-item';
+        galleryItem.innerHTML = `
+            <div class="gallery-thumbnail" ondblclick="navegarACarpeta('${folder.path}')">
+                📁
+            </div>
+            <div class="gallery-info">
+                <div class="gallery-name">${folder.name}</div>
+                <div class="gallery-meta">
+                    <span>Carpeta</span>
+                </div>
+                <div class="gallery-actions">
+                    <button class="btn btn-secondary" onclick="mostrarRename('${folder.markerFile}', '${folder.name}', true)">
+                        ✏️
+                    </button>
+                    <button class="btn btn-danger" onclick="eliminarArchivo('${folder.markerFile}', '${folder.name}', true)">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+        `;
+        filesList.appendChild(galleryItem);
+    });
+    
+    // Mostrar archivos
+    files.forEach(file => {
+        const { data: publicUrlData } = supabase.storage
+            .from('midrive-files')
+            .getPublicUrl(`${currentFolder}/${file.name}`);
+
+        const originalName = file.name.replace(/^\d+_/, '');
+        const fileType = getFileType(originalName);
+        const icono = getFileIcon(fileType);
+        
+        const galleryItem = document.createElement('div');
+        galleryItem.className = 'gallery-item';
+        
+        // Generar thumbnail
+        let thumbnailContent = icono;
+        if (fileType === 'Imagen') {
+            thumbnailContent = `<img src="${publicUrlData.publicUrl}" alt="${originalName}" loading="lazy">`;
+        }
+        
+        galleryItem.innerHTML = `
+            <div class="gallery-thumbnail" onclick="previsualizarArchivo('${file.name}', '${originalName}')">
+                ${thumbnailContent}
+            </div>
+            <div class="gallery-info">
+                <div class="gallery-name">${originalName}</div>
+                <div class="gallery-meta">
+                    <span>${fileType}</span>
+                    <span>${formatFileSize(file.metadata?.size || 0)}</span>
+                </div>
+                <div class="gallery-actions">
+                    <button class="btn btn-primary" onclick="previsualizarArchivo('${file.name}', '${originalName}')">
+                        👁️
+                    </button>
+                    <button class="btn btn-secondary" onclick="descargarArchivo('${publicUrlData.publicUrl}')">
+                        ⬇️
+                    </button>
+                    <button class="btn btn-info" onclick="generarEnlaceCompartido('${file.name}', '${originalName}')">
+                        🔗
+                    </button>
+                    <button class="btn btn-warning" onclick="mostrarRename('${file.name}', '${originalName}', false)">
+                        ✏️
+                    </button>
+                    <button class="btn btn-danger" onclick="eliminarArchivo('${file.name}', '${originalName}', false)">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+        `;
+        filesList.appendChild(galleryItem);
+    });
+    
+    if (folders.length === 0 && files.length === 0) {
+        filesList.innerHTML = '<p class="empty-state">No se encontraron elementos</p>';
+    }
+}
+
+function getFileIcon(fileType) {
+    const icons = {
+        'Imagen': '🖼️',
+        'Video': '🎥',
+        'Audio': '🎵',
+        'Documento': '📄',
+        'PDF': '📕',
+        'Texto': '📝',
+        'Código': '💻',
+        'Archivo': '📄'
+    };
+    return icons[fileType] || '📄';
+}
+
+// Exponer funciones globalmente
+window.previsualizarArchivo = previsualizarArchivo;
+window.cerrarPreview = cerrarPreview;
+window.mostrarRename = mostrarRename;
+window.confirmarRename = confirmarRename;
+window.cerrarRename = cerrarRename;
+window.buscarArchivos = buscarArchivos;
+window.filtrarPorTipo = filtrarPorTipo;
+window.cambiarVista = cambiarVista;
+
+// ===== SISTEMA DE CONFIGURACIÓN =====
+let appSettings = {
+    darkMode: false,
+    defaultView: 'list',
+    autoRefresh: true,
+    publicLinks: false,
+    analytics: true
+};
+
+function mostrarConfiguracion() {
+    // Cargar configuración actual
+    loadSettings();
+    
+    // Calcular estadísticas de almacenamiento
+    calculateStorageStats();
+    
+    // Mostrar modal
+    document.getElementById('settingsModal').style.display = 'flex';
+}
+
+function cerrarConfiguracion() {
+    document.getElementById('settingsModal').style.display = 'none';
+}
+
+function mostrarTab(tabName) {
+    // Ocultar todos los tabs
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Desactivar todos los botones
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Mostrar tab seleccionado
+    document.getElementById(tabName + 'Tab').classList.add('active');
+    event.target.classList.add('active');
+    
+    // Si es el tab de almacenamiento, recalcular estadísticas
+    if (tabName === 'storage') {
+        calculateStorageStats();
+    }
+}
+
+function loadSettings() {
+    // Cargar desde localStorage
+    const savedSettings = localStorage.getItem('midrive-settings');
+    if (savedSettings) {
+        appSettings = { ...appSettings, ...JSON.parse(savedSettings) };
+    }
+    
+    // Aplicar configuraciones a la UI
+    document.getElementById('darkModeToggle').checked = appSettings.darkMode;
+    document.getElementById('defaultView').value = appSettings.defaultView;
+    document.getElementById('autoRefresh').checked = appSettings.autoRefresh;
+    document.getElementById('publicLinks').checked = appSettings.publicLinks;
+    document.getElementById('analytics').checked = appSettings.analytics;
+    
+    // Aplicar tema
+    if (appSettings.darkMode) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    }
+    
+    // Aplicar vista por defecto
+    currentView = appSettings.defaultView;
+}
+
+function saveSettings() {
+    localStorage.setItem('midrive-settings', JSON.stringify(appSettings));
+}
+
+function toggleDarkMode() {
+    appSettings.darkMode = document.getElementById('darkModeToggle').checked;
+    
+    if (appSettings.darkMode) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        mostrarMensaje('🌙 Modo oscuro activado', 'success');
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+        mostrarMensaje('☀️ Modo claro activado', 'success');
+    }
+    
+    saveSettings();
+}
+
+function cambiarVistaDefecto(vista) {
+    appSettings.defaultView = vista;
+    currentView = vista;
+    saveSettings();
+    mostrarMensaje(`📋 Vista por defecto cambiada a ${vista === 'list' ? 'Lista' : 'Galería'}`, 'success');
+    
+    // Actualizar vista actual
+    cargarArchivos();
+}
+
+function toggleAutoRefresh() {
+    appSettings.autoRefresh = document.getElementById('autoRefresh').checked;
+    saveSettings();
+    mostrarMensaje(`🔄 Auto-actualización ${appSettings.autoRefresh ? 'activada' : 'desactivada'}`, 'success');
+}
+
+function togglePublicLinks() {
+    appSettings.publicLinks = document.getElementById('publicLinks').checked;
+    saveSettings();
+    mostrarMensaje(`🔗 Enlaces públicos ${appSettings.publicLinks ? 'activados' : 'desactivados'}`, 'success');
+}
+
+function toggleAnalytics() {
+    appSettings.analytics = document.getElementById('analytics').checked;
+    saveSettings();
+    mostrarMensaje(`📊 Análisis ${appSettings.analytics ? 'activado' : 'desactivado'}`, 'success');
+}
+
+async function calculateStorageStats() {
+    if (!currentUser) return;
+    
+    try {
+        const currentFolder = obtenerRutaCompleta('');
+        const { data, error } = await supabase.storage
+            .from('midrive-files')
+            .list(currentFolder, { limit: 1000 });
+        
+        if (error) throw error;
+        
+        let totalSize = 0;
+        let fileCount = 0;
+        let folderCount = 0;
+        
+        if (data) {
+            data.forEach(item => {
+                if (item.name.endsWith('.folder')) {
+                    folderCount++;
+                } else if (!item.name.startsWith('.') && 
+                          !item.name.includes('_avatar.') && 
+                          item.name !== '.emptyFolderPlaceholder') {
+                    fileCount++;
+                    totalSize += item.metadata?.size || 0;
+                }
+            });
+        }
+        
+        // Actualizar UI
+        document.getElementById('usedStorage').textContent = formatFileSize(totalSize);
+        document.getElementById('totalFiles').textContent = fileCount;
+        document.getElementById('totalFolders').textContent = folderCount;
+        
+        // Actualizar barra de progreso (500MB = límite gratuito)
+        const maxStorage = 500 * 1024 * 1024; // 500MB en bytes
+        const percentage = Math.min((totalSize / maxStorage) * 100, 100);
+        document.getElementById('storageProgress').style.width = percentage + '%';
+        
+    } catch (error) {
+        console.error('Error calculando estadísticas:', error);
+        document.getElementById('usedStorage').textContent = 'Error';
+        document.getElementById('totalFiles').textContent = 'Error';
+        document.getElementById('totalFolders').textContent = 'Error';
+    }
+}
+
+function confirmarLimpiezaTotal() {
+    const confirmacion = confirm(
+        '⚠️ ADVERTENCIA: Esta acción eliminará TODOS tus archivos y carpetas.\n\n' +
+        'Esta acción NO se puede deshacer.\n\n' +
+        '¿Estás completamente seguro de que quieres continuar?'
+    );
+    
+    if (confirmacion) {
+        const segundaConfirmacion = confirm(
+            '🚨 ÚLTIMA CONFIRMACIÓN\n\n' +
+            'Escribe "ELIMINAR TODO" en tu mente y confirma si realmente quieres eliminar todo tu contenido.'
+        );
+        
+        if (segundaConfirmacion) {
+            eliminarDefinitivo();
+            cerrarConfiguracion();
+        }
+    }
+}
+
+function exportarConfiguracion() {
+    const configData = {
+        settings: appSettings,
+        exportDate: new Date().toISOString(),
+        version: '2.0.0'
+    };
+    
+    const dataStr = JSON.stringify(configData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'midrive-config.json';
+    link.click();
+    
+    URL.revokeObjectURL(url);
+    mostrarMensaje('📤 Configuración exportada exitosamente', 'success');
+}
+
+// ===== SISTEMA DE ENLACES COMPARTIDOS =====
+function generarEnlaceCompartido(fileName, originalName) {
+    // Obtener URL pública del archivo
+    const { data: publicUrlData } = supabase.storage
+        .from('midrive-files')
+        .getPublicUrl(`${obtenerRutaCompleta()}/${fileName}`);
+    
+    // Crear enlace compartido
+    const shareUrl = publicUrlData.publicUrl;
+    
+    // Copiar al portapapeles
+    navigator.clipboard.writeText(shareUrl).then(() => {
+        mostrarMensaje(`🔗 Enlace de "${originalName}" copiado al portapapeles`, 'success');
+    }).catch(() => {
+        // Fallback para navegadores que no soportan clipboard API
+        const textarea = document.createElement('textarea');
+        textarea.value = shareUrl;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        mostrarMensaje(`🔗 Enlace de "${originalName}" copiado al portapapeles`, 'success');
+    });
+}
+
+// Exponer funciones globalmente
+window.mostrarConfiguracion = mostrarConfiguracion;
+window.cerrarConfiguracion = cerrarConfiguracion;
+window.mostrarTab = mostrarTab;
+window.toggleDarkMode = toggleDarkMode;
+window.cambiarVistaDefecto = cambiarVistaDefecto;
+window.toggleAutoRefresh = toggleAutoRefresh;
+window.togglePublicLinks = togglePublicLinks;
+window.toggleAnalytics = toggleAnalytics;
+window.confirmarLimpiezaTotal = confirmarLimpiezaTotal;
+window.exportarConfiguracion = exportarConfiguracion;
+window.generarEnlaceCompartido = generarEnlaceCompartido;

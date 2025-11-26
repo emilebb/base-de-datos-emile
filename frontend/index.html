@@ -85,6 +85,9 @@
                                 <div id="userEmail" class="user-email">email@ejemplo.com</div>
                             </div>
                         </div>
+                        <button class="btn btn-secondary" onclick="mostrarConfiguracion()">
+                            ⚙️ Configuración
+                        </button>
                         <button class="btn btn-secondary" onclick="cerrarSesion()">
                             🚪 Cerrar Sesión
                         </button>
@@ -334,6 +337,192 @@
                 <div class="history-list">
                     <div id="historyItems">
                         <p class="loading">Cargando historial...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Previsualización -->
+    <div id="previewModal" class="modal" style="display: none;">
+        <div class="modal-content preview-modal">
+            <div class="modal-header">
+                <h3 id="previewTitle">Vista Previa</h3>
+                <button class="close-btn" onclick="cerrarPreview()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="previewContent" class="preview-content">
+                    <!-- Contenido de previsualización -->
+                </div>
+                <div class="preview-info">
+                    <div class="file-details">
+                        <span id="previewFileName"></span>
+                        <span id="previewFileSize"></span>
+                        <span id="previewFileType"></span>
+                    </div>
+                    <div class="preview-actions">
+                        <button class="btn btn-primary" id="previewDownloadBtn">
+                            ⬇️ Descargar
+                        </button>
+                        <button class="btn btn-secondary" onclick="cerrarPreview()">
+                            ❌ Cerrar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Renombrar -->
+    <div id="renameModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>✏️ Renombrar Archivo</h3>
+                <button class="close-btn" onclick="cerrarRename()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form onsubmit="confirmarRename(event)">
+                    <div class="form-group">
+                        <label for="newFileName">Nuevo nombre:</label>
+                        <input type="text" id="newFileName" required>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">
+                            ✅ Renombrar
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="cerrarRename()">
+                            ❌ Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Configuración -->
+    <div id="settingsModal" class="modal" style="display: none;">
+        <div class="modal-content settings-modal">
+            <div class="modal-header">
+                <h3>⚙️ Configuración</h3>
+                <button class="close-btn" onclick="cerrarConfiguracion()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-tabs">
+                    <button class="tab-btn active" onclick="mostrarTab('general')">🔧 General</button>
+                    <button class="tab-btn" onclick="mostrarTab('storage')">💾 Almacenamiento</button>
+                    <button class="tab-btn" onclick="mostrarTab('privacy')">🔒 Privacidad</button>
+                    <button class="tab-btn" onclick="mostrarTab('about')">ℹ️ Acerca de</button>
+                </div>
+                
+                <!-- Tab General -->
+                <div id="generalTab" class="tab-content active">
+                    <h4>🔧 Configuración General</h4>
+                    <div class="setting-item">
+                        <label class="setting-label">
+                            <span>🌙 Modo Oscuro</span>
+                            <input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label">
+                            <span>📋 Vista por defecto</span>
+                            <select id="defaultView" onchange="cambiarVistaDefecto(this.value)">
+                                <option value="list">📋 Lista</option>
+                                <option value="gallery">🖼️ Galería</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label">
+                            <span>🔄 Auto-actualizar lista</span>
+                            <input type="checkbox" id="autoRefresh" checked onchange="toggleAutoRefresh()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Tab Almacenamiento -->
+                <div id="storageTab" class="tab-content">
+                    <h4>💾 Información de Almacenamiento</h4>
+                    <div class="storage-stats">
+                        <div class="storage-item">
+                            <span class="storage-label">📊 Espacio usado:</span>
+                            <span id="usedStorage">Calculando...</span>
+                        </div>
+                        <div class="storage-item">
+                            <span class="storage-label">📁 Total de archivos:</span>
+                            <span id="totalFiles">Calculando...</span>
+                        </div>
+                        <div class="storage-item">
+                            <span class="storage-label">📂 Total de carpetas:</span>
+                            <span id="totalFolders">Calculando...</span>
+                        </div>
+                        <div class="storage-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="storageProgress"></div>
+                            </div>
+                            <span class="progress-text">Límite: 500 MB (Plan gratuito)</span>
+                        </div>
+                    </div>
+                    <div class="storage-actions">
+                        <button class="btn btn-warning" onclick="limpiarTodo()">
+                            🧹 Limpiar archivos temporales
+                        </button>
+                        <button class="btn btn-danger" onclick="confirmarLimpiezaTotal()">
+                            💀 Eliminar todo el contenido
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Tab Privacidad -->
+                <div id="privacyTab" class="tab-content">
+                    <h4>🔒 Configuración de Privacidad</h4>
+                    <div class="setting-item">
+                        <label class="setting-label">
+                            <span>🔗 Enlaces públicos por defecto</span>
+                            <input type="checkbox" id="publicLinks" onchange="togglePublicLinks()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <p class="setting-description">Los archivos subidos serán públicos por defecto</p>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label">
+                            <span>📊 Permitir análisis de uso</span>
+                            <input type="checkbox" id="analytics" checked onchange="toggleAnalytics()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <p class="setting-description">Ayuda a mejorar la aplicación</p>
+                    </div>
+                </div>
+                
+                <!-- Tab Acerca de -->
+                <div id="aboutTab" class="tab-content">
+                    <h4>ℹ️ Acerca de MiDrive</h4>
+                    <div class="about-info">
+                        <div class="about-item">
+                            <strong>📱 Versión:</strong> 2.0.0
+                        </div>
+                        <div class="about-item">
+                            <strong>🚀 Desarrollado con:</strong> HTML5, CSS3, JavaScript, Supabase
+                        </div>
+                        <div class="about-item">
+                            <strong>☁️ Almacenamiento:</strong> Supabase Storage
+                        </div>
+                        <div class="about-item">
+                            <strong>🔐 Autenticación:</strong> Supabase Auth
+                        </div>
+                        <div class="about-item">
+                            <strong>🌐 Hosting:</strong> Netlify
+                        </div>
+                    </div>
+                    <div class="about-actions">
+                        <button class="btn btn-primary" onclick="window.open('https://github.com/emilebb/base-de-datos-emile', '_blank')">
+                            📂 Ver código fuente
+                        </button>
+                        <button class="btn btn-secondary" onclick="exportarConfiguracion()">
+                            📤 Exportar configuración
+                        </button>
                     </div>
                 </div>
             </div>
