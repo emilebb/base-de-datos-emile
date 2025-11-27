@@ -1146,6 +1146,11 @@ async function eliminarCarpetaEspecifica(folderName, markerFile) {
             currentPath
         );
         
+        // Redirigir automáticamente a la aplicación principal
+        setTimeout(() => {
+            window.location.href = window.location.origin + window.location.pathname;
+        }, 1000);
+        
         // Actualizar lista de archivos inmediatamente
         setTimeout(() => {
             cargarArchivos();
@@ -1708,6 +1713,13 @@ async function eliminarArchivo(fileName, originalName, isFolder = false) {
             'delete',
             currentPath
         );
+        
+        // Redirigir automáticamente a la aplicación principal si es necesario
+        if (window.location.href.includes('error') || window.location.href.includes('404')) {
+            setTimeout(() => {
+                window.location.href = window.location.origin + window.location.pathname;
+            }, 1000);
+        }
         
         // Actualizar lista de archivos inmediatamente
         setTimeout(() => {
