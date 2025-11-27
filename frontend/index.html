@@ -30,7 +30,7 @@
                             <label for="loginPassword">Contraseña</label>
                             <input type="password" id="loginPassword" required placeholder="••••••••">
                         </div>
-                        <button type="submit" class="btn btn-large auth-btn">
+                        <button type="submit" class="btn btn-large btn-gradient auth-btn">
                             🔑 Iniciar Sesión
                         </button>
                     </form>
@@ -56,7 +56,7 @@
                             <label for="confirmPassword">Confirmar Contraseña</label>
                             <input type="password" id="confirmPassword" required placeholder="Repite tu contraseña">
                         </div>
-                        <button type="submit" class="btn btn-large auth-btn">
+                        <button type="submit" class="btn btn-large btn-gradient auth-btn">
                             ✨ Crear Cuenta
                         </button>
                     </form>
@@ -104,7 +104,7 @@
                 <p>Arrastra archivos aquí o haz clic para seleccionar</p>
                 
                 <input type="file" id="fileInput" class="file-input" multiple>
-                <button class="btn btn-large" onclick="elegirArchivos()">
+                <button class="btn btn-large btn-outline transition-all hover:scale-105" onclick="elegirArchivos()">
                     📁 Elegir Archivos
                 </button>
                 
@@ -114,7 +114,7 @@
                     <div class="progress-fill" id="progressFill"></div>
                 </div>
                 
-                <button class="btn btn-success btn-large" id="uploadBtn" onclick="subirArchivos()" disabled>
+                <button class="btn btn-success btn-large transition-all hover:-translate-y-1" id="uploadBtn" onclick="subirArchivos()" disabled>
                     🚀 Subir Archivos
                 </button>
             </div>

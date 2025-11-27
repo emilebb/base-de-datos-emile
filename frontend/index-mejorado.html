@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiDrive - Tu almacenamiento en la nube (Versión Mejorada)</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Pantalla de autenticación mejorada -->
+        <div id="authScreen" class="auth-screen animate-fadeIn">
+            <div class="auth-container">
+                <div class="auth-header">
+                    <div class="logo animate-bounce">☁️</div>
+                    <h1 class="animate-slideIn">MiDrive</h1>
+                    <p class="subtitle animate-slideIn">Tu almacenamiento personal y seguro en la nube</p>
+                </div>
+
+                <!-- Formulario de Login mejorado -->
+                <div id="loginForm" class="auth-form animate-slideInFromLeft">
+                    <h2>Iniciar Sesión</h2>
+                    <form onsubmit="iniciarSesion(event)">
+                        <div class="form-group">
+                            <label for="loginEmail">Correo Electrónico</label>
+                            <input type="email" id="loginEmail" required placeholder="tu@email.com" class="transition-all">
+                        </div>
+                        <div class="form-group">
+                            <label for="loginPassword">Contraseña</label>
+                            <input type="password" id="loginPassword" required placeholder="••••••••" class="transition-all">
+                        </div>
+                        <button type="submit" class="btn btn-large btn-gradient auth-btn transition-all hover:-translate-y-1">
+                            🔑 Iniciar Sesión
+                        </button>
+                    </form>
+                    <div class="auth-switch">
+                        ¿No tienes cuenta? 
+                        <a href="#" onclick="mostrarRegistro()" class="transition-colors">Regístrate aquí</a>
+                    </div>
+                </div>
+
+                <!-- Formulario de Registro mejorado -->
+                <div id="registerForm" class="auth-form animate-slideInFromRight" style="display: none;">
+                    <h2>Crear Cuenta</h2>
+                    <form onsubmit="registrarUsuario(event)">
+                        <div class="form-group">
+                            <label for="registerEmail">Correo Electrónico</label>
+                            <input type="email" id="registerEmail" required placeholder="tu@email.com" class="transition-all">
+                        </div>
+                        <div class="form-group">
+                            <label for="registerPassword">Contraseña</label>
+                            <input type="password" id="registerPassword" required placeholder="Mínimo 6 caracteres" class="transition-all">
+                        </div>
+                        <div class="form-group">
+                            <label for="confirmPassword">Confirmar Contraseña</label>
+                            <input type="password" id="confirmPassword" required placeholder="Repite tu contraseña" class="transition-all">
+                        </div>
+                        <button type="submit" class="btn btn-large btn-gradient auth-btn transition-all hover:-translate-y-1">
+                            ✨ Crear Cuenta
+                        </button>
+                    </form>
+                    <div class="auth-switch">
+                        ¿Ya tienes cuenta? 
+                        <a href="#" onclick="mostrarLogin()" class="transition-colors">Inicia sesión aquí</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aplicación principal mejorada -->
+        <div id="mainApp" class="animate-fadeIn" style="display: none;">
+            <!-- Header mejorado -->
+            <div class="header">
+                <div class="header-content">
+                    <div class="header-left animate-slideInFromLeft">
+                        <div class="logo">☁️</div>
+                        <h1>MiDrive</h1>
+                    </div>
+                    <div class="header-right animate-slideInFromRight">
+                        <div class="user-profile transition-all hover:-translate-y-1" onclick="mostrarPerfil()">
+                            <img id="userAvatar" class="user-avatar transition-all" src="https://via.placeholder.com/48/3B82F6/FFFFFF?text=👤" alt="Avatar">
+                            <div class="user-info">
+                                <div id="userName" class="user-name">Usuario</div>
+                                <div id="userEmail" class="user-email">email@ejemplo.com</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-secondary transition-all hover:scale-105" onclick="mostrarConfiguracion()">
+                            ⚙️ Configuración
+                        </button>
+                        <button class="btn btn-outline-secondary transition-all hover:scale-105" onclick="cerrarSesion()">
+                            🚪 Cerrar Sesión
+                        </button>
+                    </div>
+                </div>
+                <p class="subtitle animate-slideIn">Tu espacio personal y privado en la nube</p>
+            </div>
+
+            <!-- Contenido principal mejorado -->
+            <div class="main-content">
+                <!-- Sección de subida de archivos mejorada -->
+                <div class="upload-section transition-all hover:-translate-y-1" id="uploadArea">
+                    <h3 class="animate-slideIn">📤 Subir Archivos</h3>
+                    <p class="animate-slideIn">Arrastra archivos aquí o haz clic para seleccionar</p>
+                    
+                    <input type="file" id="fileInput" class="file-input" multiple>
+                    <button class="btn btn-large btn-outline transition-all hover:scale-105" onclick="elegirArchivos()">
+                        📁 Elegir Archivos
+                    </button>
+                    
+                    <div class="selected-files animate-fadeIn" id="selectedFiles"></div>
+                    
+                    <div class="progress-bar" id="progressBar" style="display: none;">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    
+                    <button class="btn btn-success btn-large transition-all hover:-translate-y-1" id="uploadBtn" onclick="subirArchivos()" disabled>
+                        🚀 Subir Archivos
+                    </button>
+                </div>
+
+                <!-- Mensajes mejorados -->
+                <div class="message animate-slideIn" id="message"></div>
+
+                <!-- Botones de control mejorados -->
+                <div class="control-buttons animate-slideInFromLeft">
+                    <button class="btn btn-secondary transition-all hover:scale-105" onclick="cargarArchivos()">
+                        🔄 Actualizar Lista
+                    </button>
+                </div>
+
+                <!-- Explorador de archivos mejorado -->
+                <div class="files-explorer animate-slideInFromRight">
+                    <!-- Barra de navegación mejorada -->
+                    <div class="explorer-header">
+                        <div class="breadcrumb-container">
+                            <button class="btn btn-ghost transition-all hover:scale-105" id="backBtn" onclick="navegarAtras()" disabled>
+                                ⬅️ Atrás
+                            </button>
+                            <div class="breadcrumb" id="breadcrumb">
+                                <span class="breadcrumb-item active transition-colors cursor-pointer" onclick="navegarACarpeta('')">🏠 Inicio</span>
+                            </div>
+                        </div>
+                        <div class="explorer-actions">
+                            <button class="btn btn-outline transition-all hover:scale-105" onclick="mostrarCrearCarpeta()">
+                                📁+ Nueva Carpeta
+                            </button>
+                            <button class="btn btn-info transition-all hover:scale-105" onclick="mostrarHistorial()">
+                                📊 Historial
+                            </button>
+                            <button class="btn btn-secondary transition-all hover:scale-105" onclick="cargarArchivos()">
+                                🔄 Actualizar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Lista de carpetas y archivos mejorada -->
+                    <div class="files-list">
+                        <h3 id="currentFolderTitle" class="animate-slideIn">📂 Mis Archivos</h3>
+                        <div class="file-grid animate-fadeIn" id="filesList">
+                            <p class="loading animate-pulse">Cargando archivos...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Botón flotante de acción -->
+    <button class="btn btn-fab btn-gradient transition-all hover:scale-110" onclick="elegirArchivos()" title="Subir archivos">
+        ➕
+    </button>
+
+    <!-- Modales (mantener los originales pero con clases mejoradas) -->
+    <!-- Modal para crear carpeta -->
+    <div id="createFolderModal" class="modal animate-fadeIn" style="display: none;">
+        <div class="modal-content transition-all">
+            <div class="modal-header">
+                <h3>📁 Crear Nueva Carpeta</h3>
+                <button class="modal-close transition-colors hover:scale-110" onclick="cerrarModal('createFolderModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form onsubmit="crearCarpeta(event)">
+                    <div class="form-group">
+                        <label for="folderName">Nombre de la carpeta:</label>
+                        <input type="text" id="folderName" placeholder="Mi Nueva Carpeta" required class="transition-all">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary transition-all hover:scale-105" onclick="cerrarModal('createFolderModal')">
+                            ❌ Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-success transition-all hover:scale-105">
+                            ✅ Crear Carpeta
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="script.js"></script>
+    
+    <!-- Script para animaciones adicionales -->
+    <script>
+        // Agregar animaciones cuando se carga la página
+        document.addEventListener('DOMContentLoaded', function() {
+            // Animar elementos cuando aparecen en el viewport
+            const observerOptions = {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px'
+            };
+
+            const observer = new IntersectionObserver(function(entries) {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('animate-slideIn');
+                    }
+                });
+            }, observerOptions);
+
+            // Observar elementos que deben animarse
+            document.querySelectorAll('.upload-section, .files-explorer, .control-buttons').forEach(el => {
+                observer.observe(el);
+            });
+
+            // Efecto de escritura para el título
+            const title = document.querySelector('.auth-header h1');
+            if (title) {
+                const text = title.textContent;
+                title.textContent = '';
+                let i = 0;
+                const typeWriter = () => {
+                    if (i < text.length) {
+                        title.textContent += text.charAt(i);
+                        i++;
+                        setTimeout(typeWriter, 100);
+                    }
+                };
+                setTimeout(typeWriter, 500);
+            }
+        });
+
+        // Funciones para alternar entre login y registro con animaciones
+        function mostrarRegistro() {
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            
+            loginForm.classList.add('animate-slideInFromLeft');
+            loginForm.style.display = 'none';
+            
+            registerForm.style.display = 'block';
+            registerForm.classList.remove('animate-slideInFromRight');
+            registerForm.classList.add('animate-slideInFromRight');
+        }
+
+        function mostrarLogin() {
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            
+            registerForm.classList.add('animate-slideInFromRight');
+            registerForm.style.display = 'none';
+            
+            loginForm.style.display = 'block';
+            loginForm.classList.remove('animate-slideInFromLeft');
+            loginForm.classList.add('animate-slideInFromLeft');
+        }
+
+        // Placeholder functions (reemplazar con las funciones reales)
+        function iniciarSesion(event) {
+            event.preventDefault();
+            console.log('Iniciando sesión...');
+            // Simular login exitoso
+            setTimeout(() => {
+                document.getElementById('authScreen').style.display = 'none';
+                document.getElementById('mainApp').style.display = 'block';
+            }, 1000);
+        }
+
+        function registrarUsuario(event) {
+            event.preventDefault();
+            console.log('Registrando usuario...');
+        }
+
+        function elegirArchivos() {
+            document.getElementById('fileInput').click();
+        }
+
+        function subirArchivos() {
+            console.log('Subiendo archivos...');
+        }
+
+        function cargarArchivos() {
+            console.log('Cargando archivos...');
+        }
+
+        function mostrarPerfil() {
+            console.log('Mostrando perfil...');
+        }
+
+        function mostrarConfiguracion() {
+            console.log('Mostrando configuración...');
+        }
+
+        function cerrarSesion() {
+            console.log('Cerrando sesión...');
+        }
+
+        function navegarAtras() {
+            console.log('Navegando atrás...');
+        }
+
+        function navegarACarpeta(carpeta) {
+            console.log('Navegando a carpeta:', carpeta);
+        }
+
+        function mostrarCrearCarpeta() {
+            document.getElementById('createFolderModal').style.display = 'flex';
+        }
+
+        function mostrarHistorial() {
+            console.log('Mostrando historial...');
+        }
+
+        function cerrarModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function crearCarpeta(event) {
+            event.preventDefault();
+            console.log('Creando carpeta...');
+            cerrarModal('createFolderModal');
+        }
+    </script>
+</body>
+</html>
