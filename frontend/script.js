@@ -1036,6 +1036,127 @@ async function renombrarCarpeta(oldPath, oldName) {
     }
 }
 
+// ===== FUNCIÓN DE DEBUGGING PARA CARPETAS =====
+async function debugCarpeta(folderName, markerFile) {
+    console.log('🔍 === DEBUG CARPETA ===');
+    console.log(`📁 Nombre: ${folderName}`);
+    console.log(`📄 Marcador: ${markerFile}`);
+    console.log(`📂 Ruta actual: ${currentPath}`);
+    console.log(`👤 Usuario: ${currentUser?.id}`);
+    
+    const currentFolder = obtenerRutaCompleta();
+    console.log(`🗂️ Carpeta completa: ${currentFolder}`);
+    
+    // Listar todos los archivos para ver qué hay realmente
+    try {
+        const { data, error } = await supabase.storage
+            .from('midrive-files')
+            .list(currentFolder, { limit: 1000 });
+        
+        console.log('📋 Contenido actual de la carpeta:', data);
+        
+        if (data) {
+            data.forEach(item => {
+                console.log(`  - ${item.name} (${item.name.endsWith('.folder') ? 'CARPETA' : 'ARCHIVO'})`);
+            });
+        }
+    } catch (e) {
+        console.error('❌ Error listando contenido:', e);
+    }
+}
+
+// ===== FUNCIÓN ESPECÍFICA PARA ELIMINAR CARPETAS =====
+async function eliminarCarpetaEspecifica(folderName, markerFile) {
+    if (!currentUser) {
+        mostrarMensaje('❌ Debes iniciar sesión para eliminar carpetas', 'error');
+        return;
+    }
+
+    const confirmacion = confirm(`¿Estás seguro de que quieres eliminar la carpeta "${folderName}"?\n\nEsta acción no se puede deshacer.`);
+    
+    if (!confirmacion) {
+        return;
+    }
+
+    try {
+        mostrarMensaje(`🗑️ Eliminando carpeta: ${folderName}`, 'info');
+        
+        // Ejecutar debugging primero
+        await debugCarpeta(folderName, markerFile);
+        
+        console.log(`🗑️ Eliminando carpeta: ${folderName}`);
+        console.log(`📁 Archivo marcador: ${markerFile}`);
+        console.log(`📁 Carpeta actual: ${currentPath}`);
+        
+        const currentFolder = obtenerRutaCompleta();
+        
+        // Todas las rutas posibles para el archivo marcador de la carpeta
+        const rutasAIntentar = [
+            `${currentFolder}/${markerFile}`,
+            `${currentFolder}/${folderName}.folder`,
+            `users/${currentUser.id}/${markerFile}`,
+            `users/${currentUser.id}/${folderName}.folder`,
+            markerFile,
+            `${folderName}.folder`
+        ];
+        
+        console.log(`📁 Rutas a intentar para eliminar carpeta:`, rutasAIntentar);
+        
+        let eliminado = false;
+        let ultimoError = null;
+        
+        // Intentar eliminar con cada ruta
+        for (const ruta of rutasAIntentar) {
+            console.log(`🔄 Intentando eliminar carpeta con ruta: ${ruta}`);
+            
+            try {
+                const { data, error } = await supabase.storage
+                    .from('midrive-files')
+                    .remove([ruta]);
+                
+                if (!error) {
+                    console.log(`✅ Carpeta eliminada exitosamente con ruta: ${ruta}`);
+                    eliminado = true;
+                    break;
+                } else {
+                    console.log(`❌ Falló con ruta ${ruta}:`, error);
+                    ultimoError = error;
+                }
+            } catch (e) {
+                console.log(`❌ Excepción con ruta ${ruta}:`, e);
+                ultimoError = e;
+            }
+        }
+        
+        if (!eliminado) {
+            throw new Error(`No se pudo eliminar la carpeta "${folderName}". Último error: ${ultimoError?.message || 'Desconocido'}`);
+        }
+        
+        console.log(`✅ Carpeta eliminada: ${folderName}`);
+        mostrarMensaje(`✅ Carpeta "${folderName}" eliminada exitosamente`, 'success');
+        
+        // Registrar actividad en el historial
+        await registrarActividad(
+            markerFile,
+            folderName,
+            rutasAIntentar[0],
+            0,
+            'folder',
+            'delete',
+            currentPath
+        );
+        
+        // Actualizar lista de archivos inmediatamente
+        setTimeout(() => {
+            cargarArchivos();
+        }, 200);
+        
+    } catch (error) {
+        mostrarMensaje(`❌ Error: ${error.message}`, 'error');
+        console.error('🔴 Error al eliminar carpeta:', error);
+    }
+}
+
 // Función eliminarCarpeta removida - ahora se usa eliminarArchivo con isFolder=true
 
 // ===== SUBIR ARCHIVOS =====
@@ -1517,7 +1638,16 @@ async function eliminarArchivo(fileName, originalName, isFolder = false) {
         
         if (isFolder) {
             // Es una carpeta - eliminar el marcador .folder
-            rutasAIntentar.push(`${obtenerRutaCompleta()}/${originalName}.folder`);
+            const currentFolder = obtenerRutaCompleta();
+            rutasAIntentar = [
+                `${currentFolder}/${originalName}.folder`,
+                `${currentFolder}/${fileName}`, // Por si fileName ya incluye .folder
+                `users/${currentUser.id}/${originalName}.folder`,
+                `users/${currentUser.id}/${fileName}`,
+                `${originalName}.folder`,
+                fileName
+            ];
+            console.log(`📁 Eliminando carpeta. Rutas a intentar:`, rutasAIntentar);
         } else if (esArchivoProblemático) {
             // Es un archivo problemático - intentar múltiples rutas
             const currentFolder = obtenerRutaCompleta();
@@ -1669,6 +1799,8 @@ window.subirArchivos = subirArchivos;
 window.cargarArchivos = cargarArchivos;
 window.descargarArchivo = descargarArchivo;
 window.eliminarArchivo = eliminarArchivo;
+window.eliminarCarpetaEspecifica = eliminarCarpetaEspecifica;
+window.debugCarpeta = debugCarpeta;
 window.mostrarRegistro = mostrarRegistro;
 window.mostrarLogin = mostrarLogin;
 window.registrarUsuario = registrarUsuario;
@@ -1972,7 +2104,7 @@ function renderListView(folders, files, currentFolder) {
                 <button class="btn btn-secondary" onclick="mostrarRename('${folder.markerFile}', '${folder.name}', true)">
                     ✏️ Renombrar
                 </button>
-                <button class="btn btn-danger" onclick="eliminarArchivo('${folder.markerFile}', '${folder.name}', true)">
+                <button class="btn btn-danger" onclick="eliminarCarpetaEspecifica('${folder.name}', '${folder.markerFile}')">
                     🗑️ Eliminar
                 </button>
             </div>
